@@ -1,13 +1,14 @@
 import { react, type Editor, type TLImageShape, type TLShapeId, type TLVideoShape } from 'tldraw'
 
 import * as actions from './actions'
-import { generateAudio, imageTo3d, VOICES } from './assetGen'
+import { generateAudio, imageTo3d, voices } from './assetGen'
 import { editElements } from './elements'
 import { bakeToImage, createMockup } from './mockup'
 import { api } from './comfy'
 import { LAYOUT_HANDLERS, shapeOf, type Args, type Handler } from './botLayout'
 import { placeInChatFrame } from './chatFrame'
 import { capRefs, createGenerator, generate } from './generate'
+import { customWorkflowCommand } from './customWorkflows'
 import { DURATIONS, RATIOS, VIDEO_RATIOS } from './genOptions'
 import { MAX_VIDEO_REF_KINDS, VIDEO_TARGETS } from './videoGraphs'
 import { type ErrorSink, errorText, fileSrc, GAP, resultsAtom } from './jobs'
@@ -187,8 +188,8 @@ const HANDLERS: Record<string, Handler> = {
       if (shape.type !== AUDIO) throw new Error(`${shape.id} is not an audio shape`)
       return toChat(editor, chat, generateAudio(editor, { kind: 'clone', text: String(args.text), reference: fileSrc(editor, shape)! }, onError, true))
     }
-    if (args.voice && !VOICES.includes(args.voice)) throw new Error(`voice must be one of ${VOICES.join(', ')}`)
-    return toChat(editor, chat, generateAudio(editor, { kind: 'speech', text: String(args.text), voice: args.voice ?? VOICES[0] }, onError, true))
+    if (args.voice && !voices().includes(args.voice)) throw new Error(`voice must be one of ${voices().join(', ')}`)
+    return toChat(editor, chat, generateAudio(editor, { kind: 'speech', text: String(args.text), voice: args.voice ?? voices()[0] }, onError, true))
   },
   edit_elements: (editor, args, onError) => started(editor, editElements(editor, imageOf(editor, args.id), onError)),
   create_mockup: (editor, args, onError) => started(editor, createMockup(editor, imageOf(editor, args.id), onError)),
@@ -208,6 +209,7 @@ const HANDLERS: Record<string, Handler> = {
     return args.bake ? { image: await bakeToImage(editor, editor.getShape<MockupShape>(shape.id as MockupShape['id'])!) } : { updated: shape.id }
   },
   image_to_3d: (editor, args, onError) => started(editor, imageTo3d(editor, imageOf(editor, args.id), onError)),
+  custom_workflow: (_editor, args) => customWorkflowCommand(args),
   wait_generation: (editor, args) => waitResults(editor, (args.ids ?? []).map(String), Number(args.timeout_s) || 60),
 }
 

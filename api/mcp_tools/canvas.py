@@ -166,7 +166,8 @@ SPECS: dict[str, dict] = {
         {"prompt": {"type": "string"}, "duration": {"type": "integer"}}, ["prompt"], approval="生成音效"),
     "text_to_speech": _tool(
         "Read text aloud as an audio element. voice is a built-in voice id (zf_/zm_ Chinese female/male, "
-        "af_/am_ American, bf_/bm_ British, jf_/jm_ Japanese; default zf_xiaoxiao), or pass reference "
+        "af_/am_ American, bf_/bm_ British, jf_/jm_ Japanese; default zf_xiaoxiao; on Comfy Cloud the Qwen3-TTS speakers "
+        "Serena, Vivian, Uncle_fu, Dylan, Eric, Ryan, Aiden, Ono_anna, Sohee; default Serena), or pass reference "
         "(an audio shape id) to clone that recording's voice. Returns ids for wait_generation.",
         {"text": {"type": "string"}, "voice": {"type": "string"}, "reference": _ID}, ["text"], approval="生成配音"),
     "edit_elements": _tool(
@@ -252,6 +253,17 @@ SPECS: dict[str, dict] = {
         "to keep. When a task matches a skill, read it first and follow it.",
         {"action": {"type": "string", "enum": ["list", "read", "save"]}, "name": {"type": "string"},
          "path": {"type": "string"}, "instructions": {"type": "string"}},
+        ["action"]),
+    "custom_workflow": _tool(
+        "Connect the user's own ComfyUI workflow to a ComfyArt feature (image generation, edit, inpaint, "
+        "upscale, video...). action rules: how to mark the nodes, read it first. list: each feature's "
+        "markers, its uploaded files and the one in use. check: validate workflow (API-format JSON "
+        "object) or file for a feature and report what to fix. install: save workflow as name for "
+        "feature and use it (refused while check has errors). assign: give feature one of its files, or "
+        "file \"\" to switch back to built in. There is no delete; the user removes files on disk.",
+        {"action": {"type": "string", "enum": ["rules", "list", "check", "install", "assign"]},
+         "feature": {"type": "string"}, "workflow": {"type": "object"}, "file": {"type": "string"},
+         "name": {"type": "string"}},
         ["action"]),
 }
 

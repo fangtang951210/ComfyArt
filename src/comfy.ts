@@ -4,13 +4,18 @@ import { CLIENT_ID, onComfyEvent } from './ws'
 
 const POLL_MS = 1500
 
-export type PromptGraph = Record<string, { class_type: string; inputs: Record<string, unknown> }>
+export type PromptGraph = Record<string, { class_type: string; inputs: Record<string, unknown>; _meta?: { title?: string } }>
 
 export interface ImageRef { filename: string; subfolder: string; type: string; metadata?: { width?: number; height?: number } }
 
 function comfyUser(): string | null {
   return readLocal('Comfy.userId')
 }
+
+let cloud = false
+export const setCloud = (on: boolean) => { cloud = on }
+export const cloudMode = () => cloud
+const CLOUD_ID = 'cloud:'
 
 export function api(path: string, init?: RequestInit) {
   const user = comfyUser()
@@ -106,6 +111,19 @@ export async function loadWorkflow(name: string): Promise<PromptGraph> {
   return res.json()
 }
 
+export const titleTags = (node: PromptGraph[string]) => (node._meta?.title ?? '').toLowerCase().split(/[\s,]+/).filter((w) => w.startsWith('@'))
+
+export async function loadNamed<T extends string>(workflow: string, ...names: T[]): Promise<{ graph: PromptGraph; id: Record<T, string> }> {
+  const graph = await loadWorkflow(workflow)
+  const ids = Object.keys(graph)
+  const id = Object.fromEntries(names.map((name) => {
+    const found = ids.find((k) => titleTags(graph[k]).includes(`@${name.toLowerCase()}`))
+    if (!found) throw new Error(`workflow ${workflow} has no node titled @${name}`)
+    return [name, found]
+  }))
+  return { graph, id: id as Record<T, string> }
+}
+
 let modelPaths: Record<string, string> = {}
 
 export async function loadModelPaths(): Promise<Record<string, string>> {
@@ -131,11 +149,10 @@ function promptError(body: any, status: number): string {
 }
 
 export async function queuePrompt(prompt: PromptGraph): Promise<string> {
-  const res = await api('/prompt', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: withModelPaths(prompt), client_id: CLIENT_ID }),
-  })
+  const init = { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+  const res = cloud
+    ? await api('/comfyart/cloud/prompt', { ...init, body: JSON.stringify({ prompt }) })
+    : await api('/prompt', { ...init, body: JSON.stringify({ prompt: withModelPaths(prompt), client_id: CLIENT_ID }) })
   const body = await res.json().catch(() => null)
   if (!res.ok) throw new Error(promptError(body, res.status))
   return String(body.prompt_id)
@@ -149,6 +166,10 @@ async function inQueue(promptId: string): Promise<boolean> {
 }
 
 export async function cancelPrompt(promptId: string) {
+  if (promptId.startsWith(CLOUD_ID)) {
+    await api(`/comfyart/cloud/cancel/${promptId.slice(CLOUD_ID.length)}`, { method: 'POST' })
+    return
+  }
   const q = await (await api('/queue')).json()
   const post = (path: string, body: unknown) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (queued(q.queue_pending, promptId)) await post('/queue', { delete: [promptId] })
@@ -175,10 +196,17 @@ function nap(promptId: string) {
   })
 }
 
+export async function promptHistory(promptId: string): Promise<any> {
+  const res = promptId.startsWith(CLOUD_ID) ? await api(`/comfyart/cloud/history/${promptId.slice(CLOUD_ID.length)}`) : await api(`/history/${promptId}`)
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error?.message ?? `history failed: ${res.status}`)
+  return body[promptId]
+}
+
 async function waitForOutput<T>(promptId: string, node: string, pick: (out: Record<string, any>) => T | null): Promise<T> {
   let misses = 0
   for (;;) {
-    const hist = (await (await api(`/history/${promptId}`)).json())[promptId]
+    const hist = await promptHistory(promptId)
     if (hist) {
       const messages: [string, any][] = hist.status?.messages ?? []
       const err = messages.find((m) => m[0] === 'execution_error')
