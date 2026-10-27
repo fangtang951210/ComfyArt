@@ -3,12 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadSnapshot, Tldraw, useValue, type Editor, type TLAssetStore, type TLComponents, type TLShape } from 'tldraw'
 import 'tldraw/tldraw.css'
 
-import { uploadImage, viewUrl } from './comfy'
+import { isViewUrl, thumbSize, thumbUrl, uploadImage, viewUrl } from './comfy'
 import { svgRaster } from './vectorize'
 import { errorText, resumeJobs } from './jobs'
 import './layers'
 import { defaultKitId, loadLibrary } from './library'
 import { loadMemory } from './memory'
+import { loadInstances } from './instances'
 import { loadModels } from './models'
 import { loadWorkflowConfig } from './customWorkflows'
 import { loadProject, NEW_PARAM } from './projects'
@@ -26,6 +27,7 @@ import { VectorShapeUtil, VectorTool } from './shapes/VectorShape'
 import { ArtboardShapeUtil } from './shapes/ArtboardShape'
 import { GeneratorShapeUtil } from './shapes/GeneratorShape'
 import { MockupShapeUtil } from './shapes/MockupShape'
+import { HoverVideoShapeUtil } from './shapes/VideoShape'
 import { AdjustPanel } from './ui/AdjustPanel'
 import { AgentPanel, chatViewAtom, type ChatView } from './ui/AgentPanel'
 import { dockAtom } from './ui/chatDock'
@@ -89,7 +91,7 @@ import { uuid } from './id'
 const CHANNEL = 'comfyart-projects'
 const TAB = uuid()
 const assetUrls = getAssetUrlsByImport()
-const shapeUtils = [ArtboardShapeUtil, GeneratorShapeUtil, CommentShapeUtil, DoodleShapeUtil, TextShapeUtil, VectorShapeUtil, LottieShapeUtil, ModelShapeUtil, HtmlShapeUtil, AudioShapeUtil, MockupShapeUtil, GenBlockShapeUtil, QrShapeUtil]
+const shapeUtils = [ArtboardShapeUtil, GeneratorShapeUtil, CommentShapeUtil, DoodleShapeUtil, TextShapeUtil, VectorShapeUtil, LottieShapeUtil, ModelShapeUtil, HtmlShapeUtil, AudioShapeUtil, MockupShapeUtil, GenBlockShapeUtil, QrShapeUtil, HoverVideoShapeUtil]
 const tools = [CommentTool, DoodleTool, TextTool, VectorTool, PenTool]
 const getShapeVisibility = (shape: TLShape) => (shape.meta.hidden ? 'hidden' as const : 'inherit' as const)
 
@@ -121,8 +123,10 @@ const assets: TLAssetStore = {
   },
   resolve(asset, ctx) {
     const src = asset.props.src
-    if (!src || ctx.shouldResolveToOriginal || asset.type !== 'image' || asset.props.mimeType !== 'image/svg+xml') return src
-    return svgRaster(src, asset.props.w, asset.props.h, ctx.steppedScreenScale * ctx.dpr)
+    if (!src || ctx.shouldResolveToOriginal || asset.type !== 'image') return src
+    if (asset.props.mimeType === 'image/svg+xml') return svgRaster(src, asset.props.w, asset.props.h, ctx.steppedScreenScale * ctx.dpr)
+    const size = thumbSize(Math.max(asset.props.w, asset.props.h) * ctx.steppedScreenScale * ctx.dpr)
+    return size && isViewUrl(src) && !asset.props.isAnimated ? thumbUrl(src, size) : src
   },
 }
 
@@ -141,7 +145,7 @@ export function App({ id }: { id: string }) {
   }, [editor, dark])
 
   useEffect(() => {
-    void Promise.all([loadMemory(), loadWorkflowConfig(), loadModels(), loadNotices()]).catch((e) => setError(String(e)))
+    void Promise.all([loadMemory(), loadWorkflowConfig(), loadModels(), loadNotices(), loadInstances()]).catch((e) => setError(String(e)))
   }, [])
 
   const onMount = useCallback((ed: Editor) => {

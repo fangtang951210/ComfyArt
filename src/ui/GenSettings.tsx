@@ -1,6 +1,10 @@
 import { useState } from 'react'
+import { useValue } from 'tldraw'
 
+import { settingsAtom } from '../bot'
+import { defaultTarget } from '../comfy'
 import { DURATIONS, QUALITIES, RATIOS, RESOLUTIONS, SHOTS, STYLES, VIDEO_RATIOS, VIDEO_RESOLUTIONS } from '../genOptions'
+import { instancesAtom, instanceStatusAtom, targetOptions } from '../instances'
 import { isInstalled, type ModelDef } from '../models'
 import type { GeneratorShape } from '../shapes/GeneratorShape'
 import { Chips } from './Chips'
@@ -10,6 +14,18 @@ import { Popover } from './Popover'
 
 const COUNTS = [1, 2, 3, 4]
 const RES_LABELS: Record<string, string> = { '1K': '1K', '2K': '2K', custom: t('common.custom') }
+
+function Dim({ label, value, onCommit }: { label: string; value: number; onCommit: (v: number) => void }) {
+  const commit = (input: HTMLInputElement) => {
+    const v = Math.round(Number(input.value))
+    const next = input.value.trim() && Number.isFinite(v) ? Math.min(4096, Math.max(64, v)) : value
+    input.value = String(next)
+    if (next !== value) onCommit(next)
+  }
+  return (
+    <label className="ca-num"><span>{label}</span><input key={value} type="number" min={64} max={4096} defaultValue={value} onBlur={(e) => commit(e.currentTarget)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur() }} /></label>
+  )
+}
 
 function RatioShape({ ratio }: { ratio: string }) {
   const [a, b] = ratio.split(':').map(Number)
@@ -36,12 +52,12 @@ export function SettingsPill({ p, video, quality, update }: { p: GeneratorShape[
   )
 }
 
-export function ModelPill({ models, model, onPick }: { models: ModelDef[]; model: ModelDef; onPick: (id: string) => void }) {
+export function ModelPill({ models, model, runOn, onPick }: { models: ModelDef[]; model: ModelDef; runOn?: string; onPick: (id: string) => void }) {
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen} side="top" align="end" trigger={({ open: o, toggle }) => (
       <button type="button" className="ca-gen__pill" data-open={o || undefined} onClick={toggle}>
-        <span className="ca-gen__pilltext">{model.label}</span>{!isInstalled(model.id) && <span className="ca-model__tag">{t('modelPrefs.notInstalled')}</span>}<span className="ca-gen__chev">{Icons.chevron}</span>
+        <span className="ca-gen__pilltext">{model.label}</span>{!isInstalled(model.id, runOn) && <span className="ca-model__tag">{t('modelPrefs.notInstalled')}</span>}<span className="ca-gen__chev">{Icons.chevron}</span>
       </button>
     )}>
       <div className="ca-menu ca-models">
@@ -56,8 +72,32 @@ export function ModelPill({ models, model, onPick }: { models: ModelDef[]; model
   )
 }
 
+export function RunOnPill({ runOn, onPick }: { runOn: string | null; onPick: (runOn: string | null) => void }) {
+  const [open, setOpen] = useState(false)
+  const targets = targetOptions(useValue(instancesAtom), useValue(instanceStatusAtom))
+  useValue(settingsAtom)
+  const global = targets.find(([id]) => id === defaultTarget()) ?? targets[0]
+  const options: [string | null, string, string?][] = [[null, t('runOn.global', global[1])], ...targets]
+  const current = options.find(([id]) => id === runOn) ?? options[0]
+  return (
+    <Popover open={open} onOpenChange={setOpen} side="top" align="end" trigger={({ open: o, toggle }) => (
+      <button type="button" className="ca-gen__pill" data-open={o || undefined} title={t('runOn.title')} onClick={toggle}>
+        <span className="ca-gen__pilltext">{current[0] === null ? global[1] : current[1]}</span><span className="ca-gen__chev">{Icons.chevron}</span>
+      </button>
+    )}>
+      <div className="ca-menu">
+        <div className="ca-gen__label">{t('runOn.title')}</div>
+        {options.map(([id, label, hint]) => (
+          <button key={id ?? ''} type="button" className="ca-menu__item" onClick={() => { setOpen(false); onPick(id) }}>
+            <span className="ca-menu__grow">{label}</span>{hint && <span className="ca-menu__key">{hint}</span>}{id === current[0] && <span className="ca-icon">{Icons.check}</span>}
+          </button>
+        ))}
+      </div>
+    </Popover>
+  )
+}
+
 export function GenSettings({ p, video, quality, update }: { p: GeneratorShape['props']; video: boolean; quality: boolean; update: Update }) {
-  const dim = (key: 'cw' | 'ch', v: number) => v >= 64 && v <= 4096 && update({ [key]: v })
   return (
     <div className="ca-menu ca-gen__settings">
       <div className="ca-gen__title">{video ? t('genSettings.videoSettings') : t('genSettings.imageSettings')}</div>
@@ -67,8 +107,8 @@ export function GenSettings({ p, video, quality, update }: { p: GeneratorShape['
           <Chips value={p.resolution} options={RESOLUTIONS.map((r) => [r, RES_LABELS[r]] as [string, string])} onPick={(r) => update({ resolution: r })} gen />
           {p.resolution === 'custom' && (
             <div className="ca-style__row">
-              <label className="ca-num"><span>W</span><input type="number" min={64} max={4096} value={p.cw} onChange={(e) => dim('cw', Number(e.target.value))} onKeyDown={(e) => e.stopPropagation()} /></label>
-              <label className="ca-num"><span>H</span><input type="number" min={64} max={4096} value={p.ch} onChange={(e) => dim('ch', Number(e.target.value))} onKeyDown={(e) => e.stopPropagation()} /></label>
+              <Dim label="W" value={p.cw} onCommit={(cw) => update({ cw })} />
+              <Dim label="H" value={p.ch} onCommit={(ch) => update({ ch })} />
             </div>
           )}
         </>

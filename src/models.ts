@@ -1,8 +1,9 @@
 import { atom } from 'tldraw'
 
-import { api, cloudMode, loadModelPaths, readUserJson, writeUserJson } from './comfy'
+import { api, cloudMode, defaultTarget, lanMode, loadModelPaths, readUserJson, writeUserJson } from './comfy'
 import { CUSTOM_GENERATE, workflowConfigAtom } from './customWorkflows'
 import { t } from './i18n'
+import { lanHas } from './instances'
 
 export interface ModelDef {
   id: string
@@ -17,7 +18,7 @@ export interface ModelDef {
   caption?: string
   control?: string
   negative?: [string, string]
-  lora?: string
+  lora?: string | null
 }
 
 export const IMAGE_MODELS: ModelDef[] = [
@@ -32,6 +33,14 @@ export const IMAGE_MODELS: ModelDef[] = [
   {
     id: 'flux2-klein-9b-t2i.api.json', label: 'Flux.2 Klein 9B', desc: t('models.fast4StepGenerationSupports'), files: ['flux-2-klein-9b-nvfp4.safetensors'],
     refs: 'latent', prompt: 'text', sizes: ['size', 'scheduler'], lora: 'flux2-klein',
+  },
+  {
+    id: 'flux3-klein-t2i.api.json', label: 'FLUX.3 Klein', desc: t('models.flux3KleinFast16Step'), files: ['flux3-image-klein-int8-convrot.safetensors'],
+    refs: 'latent', prompt: 'text', sizes: ['size'], lora: 'flux3-klein',
+  },
+  {
+    id: 'moss-image-t2i.api.json', label: 'MOSS-Image', desc: t('models.mossImageFullCaption'), files: ['moss_image_sft_int8_convrot.safetensors'],
+    prompt: 'text', sizes: ['size'], lora: 'moss-image',
   },
   {
     id: 'qwen-image-2512-t2i.api.json', label: 'Qwen Image 2512', desc: t('models.solidDetailAndCompositionSupports'), files: ['qwen_image_2512_fp8_e4m3fn.safetensors'],
@@ -51,7 +60,7 @@ export const VIDEO_MODELS: ModelDef[] = [
 export const isVideo = (workflow: string) => VIDEO_MODELS.some((m) => m.id === workflow)
 function customModels(): ModelDef[] {
   const file = workflowConfigAtom.get().generate
-  return file ? [{ id: CUSTOM_GENERATE, label: file.replace(/\.json$/, ''), desc: t('customWorkflows.customModelDesc'), files: [] }] : []
+  return file ? [{ id: CUSTOM_GENERATE, label: file.replace(/\.json$/, ''), desc: t('customWorkflows.customModelDesc'), files: [], lora: null }] : []
 }
 
 export const modelOf = (workflow: string) => [...IMAGE_MODELS, ...VIDEO_MODELS, ...customModels()].find((m) => m.id === workflow)
@@ -88,7 +97,12 @@ export function agentModels(video: boolean): ModelDef[] {
   return picked.length ? picked : list.length ? list.slice(0, 1) : (video ? VIDEO_MODELS : IMAGE_MODELS).slice(0, 1)
 }
 
-export function isInstalled(id: string): boolean {
+export function isInstalled(id: string, runOn = defaultTarget()): boolean {
   const installed = installedAtom.get()
-  return cloudMode() || !installed || installed.includes(id)
+  const def = [...IMAGE_MODELS, ...VIDEO_MODELS].find((m) => m.id === id)
+  if (cloudMode() || !installed || !def) return true
+  const here = installed.includes(id)
+  if (!lanMode() || runOn === 'local') return here
+  const lan = lanHas(def.files, runOn)
+  return runOn === 'auto' ? here || lan : lan
 }

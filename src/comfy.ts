@@ -13,9 +13,18 @@ function comfyUser(): string | null {
 }
 
 let cloud = false
+let lanIds: string[] = []
+let target = 'auto'
 export const setCloud = (on: boolean) => { cloud = on }
+export const setLan = (ids: string[]) => { lanIds = ids }
+export const setTarget = (next: string) => { target = next }
 export const cloudMode = () => cloud
+export const lanMode = () => lanIds.length > 0 && !cloud
+export const validTarget = (t: unknown): string | null => (t === 'auto' || t === 'local' || lanIds.includes(t as string) ? t as string : null)
+export const defaultTarget = () => validTarget(target) ?? 'auto'
 const CLOUD_ID = 'cloud:'
+export const LAN_ID = 'srv:'
+const lanPath = (promptId: string) => promptId.slice(LAN_ID.length).replace(':', '/')
 
 export function api(path: string, init?: RequestInit) {
   const user = comfyUser()
@@ -25,8 +34,8 @@ export function api(path: string, init?: RequestInit) {
 const userFile = (path: string) => `/userdata/${encodeURIComponent(path)}`
 
 export async function readUserText(path: string): Promise<string | null> {
-  const res = await api(userFile(path))
-  if (res.status === 404) return null
+  const res = await api(`/comfyart${userFile(path)}`)
+  if (res.status === 204) return null
   if (!res.ok) throw new Error(`read ${path} failed: ${res.status}`)
   return res.text()
 }
@@ -62,6 +71,12 @@ export function viewUrl(ref: ImageRef): string {
 export function thumbUrl(src: string, max = 256): string {
   return `/comfyart/thumb?${new URLSearchParams({ url: src, max: String(max) })}`
 }
+
+const THUMB_SIZES = [256, 512, 1024]
+
+export const thumbSize = (edge: number) => THUMB_SIZES.find((s) => edge <= s)
+
+export const isViewUrl = (src: string) => src.startsWith('/api/view?')
 
 export function refFromUrl(src: string): ImageRef {
   const q = new URL(src, location.origin).searchParams
@@ -148,11 +163,13 @@ function promptError(body: any, status: number): string {
   return top.details ? `${top.message}: ${top.details}` : top.message
 }
 
-export async function queuePrompt(prompt: PromptGraph): Promise<string> {
+export async function queuePrompt(prompt: PromptGraph, runOn = defaultTarget()): Promise<string> {
   const init = { method: 'POST', headers: { 'Content-Type': 'application/json' } }
   const res = cloud
     ? await api('/comfyart/cloud/prompt', { ...init, body: JSON.stringify({ prompt }) })
-    : await api('/prompt', { ...init, body: JSON.stringify({ prompt: withModelPaths(prompt), client_id: CLIENT_ID }) })
+    : !lanMode() || runOn === 'local'
+      ? await api('/prompt', { ...init, body: JSON.stringify({ prompt: withModelPaths(prompt), client_id: CLIENT_ID }) })
+      : await api('/comfyart/remote/prompt', { ...init, body: JSON.stringify({ prompt, client_id: CLIENT_ID, target: runOn }) })
   const body = await res.json().catch(() => null)
   if (!res.ok) throw new Error(promptError(body, res.status))
   return String(body.prompt_id)
@@ -165,15 +182,30 @@ async function inQueue(promptId: string): Promise<boolean> {
   return queued(q.queue_running, promptId) || queued(q.queue_pending, promptId)
 }
 
-export async function cancelPrompt(promptId: string) {
+export async function cancelPrompt(promptId: string): Promise<boolean> {
   if (promptId.startsWith(CLOUD_ID)) {
     await api(`/comfyart/cloud/cancel/${promptId.slice(CLOUD_ID.length)}`, { method: 'POST' })
-    return
+    return false
+  }
+  if (promptId.startsWith(LAN_ID)) {
+    await api(`/comfyart/remote/cancel/${lanPath(promptId)}`, { method: 'POST' })
+    return false
   }
   const q = await (await api('/queue')).json()
   const post = (path: string, body: unknown) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (queued(q.queue_pending, promptId)) await post('/queue', { delete: [promptId] })
-  else if (queued(q.queue_running, promptId)) await post('/interrupt', { prompt_id: promptId })
+  if (queued(q.queue_pending, promptId)) {
+    await post('/queue', { delete: [promptId] })
+    return true
+  }
+  if (queued(q.queue_running, promptId)) await post('/interrupt', { prompt_id: promptId })
+  return false
+}
+
+export async function freeMemory(): Promise<boolean> {
+  const res = await api('/free', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unload_models: true, free_memory: true }) })
+  if (!res.ok) throw new Error(`free failed: ${res.status}`)
+  const q = await (await api('/queue')).json()
+  return (q.queue_running ?? []).length > 0
 }
 
 const wakers = new Map<string, Set<() => void>>()
@@ -197,7 +229,9 @@ function nap(promptId: string) {
 }
 
 export async function promptHistory(promptId: string): Promise<any> {
-  const res = promptId.startsWith(CLOUD_ID) ? await api(`/comfyart/cloud/history/${promptId.slice(CLOUD_ID.length)}`) : await api(`/history/${promptId}`)
+  const res = promptId.startsWith(CLOUD_ID) ? await api(`/comfyart/cloud/history/${promptId.slice(CLOUD_ID.length)}`)
+    : promptId.startsWith(LAN_ID) ? await api(`/comfyart/remote/history/${lanPath(promptId)}`)
+      : await api(`/history/${promptId}`)
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.error?.message ?? `history failed: ${res.status}`)
   return body[promptId]

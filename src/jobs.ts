@@ -1,6 +1,6 @@
-import { AssetRecordType, atom, createShapeId, type Editor, type JsonValue, type TLAssetId, type TLImageAsset, type TLShape, type TLShapeId, type TLVideoAsset } from 'tldraw'
+import { AssetRecordType, atom, createShapeId, isShapeId, type Editor, type TLParentId, type JsonValue, type TLAssetId, type TLImageAsset, type TLShape, type TLShapeId, type TLVideoAsset } from 'tldraw'
 
-import { cancelPrompt, mediaMeta, queuePrompt, refKind, viewUrl, waitForImages, type ImageRef } from './comfy'
+import { cancelPrompt, mediaMeta, promptHistory, queuePrompt, refKind, viewUrl, waitForImages, type ImageRef } from './comfy'
 import { GENERATOR, type GeneratorShape } from './shapes/GeneratorShape'
 import type { Built } from './workflows'
 import { t } from './i18n'
@@ -14,6 +14,8 @@ export interface Job {
   kind: MediaKind
   placer?: string
   extra?: Record<string, unknown>
+  partial?: string[]
+  stopping?: boolean
 }
 
 export interface Media { ref: ImageRef; src: string; w: number; h: number; kind: MediaKind }
@@ -24,6 +26,7 @@ export type Placer = (editor: Editor, holder: TLShape, media: Media[], job: Job,
 export const GAP = 40
 const active = new Set<string>()
 const settled = new Set<string>()
+const dropped = new Map<string, () => void>()
 const placers: Record<string, Placer> = {}
 
 export interface JobResult { srcs: string[]; error?: string }
@@ -90,7 +93,7 @@ export interface GenInfo {
   inputs?: Record<string, JsonValue>
 }
 
-const GEN_INPUTS = ['refs', 'base', 'strength', 'colors', 'refModes', 'refStrengths', 'refControls', 'lastFrame', 'scenes', 'videoMode', 'motion', 'speech', 'negative', 'seed', 'loras']
+const GEN_INPUTS = ['refs', 'base', 'strength', 'colors', 'refModes', 'refStrengths', 'refControls', 'lastFrame', 'scenes', 'videoMode', 'motion', 'speech', 'negative', 'seed', 'loras', 'runOn']
 
 function infoOf(holder: TLShape, job: Job): GenInfo {
   if (holder.type !== GENERATOR) return { tool: job.name }
@@ -109,19 +112,26 @@ function infoOf(holder: TLShape, job: Job): GenInfo {
   }
 }
 
+export function rowSpots(editor: Editor, holder: TLShape, sizes: [number, number][], from: [number, number]) {
+  return sizes.map(([w, h]) => {
+    const [x, y] = freeSpot(editor, w, h, from, holder.parentId)
+    from = [x + w + GAP, y]
+    return isShapeId(holder.parentId) ? editor.getPointInShapeSpace(holder.parentId, { x, y }) : { x, y }
+  })
+}
+
 const defaultPlacer: Placer = async (editor, holder, media, job) => {
   const w = (holder.props as { w: number }).w
   const gen = infoOf(holder, job)
-  let x = holder.x
+  const b = editor.getShapePageBounds(holder)!
   const ids: TLShapeId[] = []
   editor.run(() => {
     editor.deleteShape(holder.id)
-    for (const m of media) {
-      const id = placeMedia(editor, m, job.name, x, holder.y, w, holder.parentId)
+    rowSpots(editor, holder, media.map((m) => [w, w * m.h / m.w]), [b.minX, b.minY]).forEach((p, i) => {
+      const id = placeMedia(editor, media[i], job.name, p.x, p.y, w, holder.parentId)
       editor.updateShape({ id, type: editor.getShape(id)!.type, meta: { gen: gen as any } })
       ids.push(id)
-      x += w + GAP
-    }
+    })
   }, { history: 'ignore' })
   selectResults(editor, holder, ids)
 }
@@ -130,11 +140,27 @@ export function selectResults(editor: Editor, holder: TLShape, ids: TLShapeId[])
   if (!holder.meta.quiet) editor.select(...ids)
 }
 
+async function keepPartial(editor: Editor, holder: TLShape, job: Job): Promise<number> {
+  if (!job.partial) return 0
+  const outputs = (await promptHistory(job.id))?.outputs ?? {}
+  const refs: ImageRef[] = job.partial.flatMap((node) => outputs[node]?.images ?? [])
+  const media = await Promise.all(refs.map((r) => toMedia(r, 'video')))
+  const w = (holder.props as { w: number }).w
+  const b = editor.getShapePageBounds(holder)!
+  editor.run(() => {
+    rowSpots(editor, holder, media.map((m) => [w, w * m.h / m.w]), [b.maxX + GAP, b.minY]).forEach((p, i) => placeMedia(editor, media[i], job.name, p.x, p.y, w, holder.parentId))
+  }, { history: 'ignore' })
+  return media.length
+}
+
 async function finish(editor: Editor, holderId: TLShapeId, job: Job, onError: ErrorSink) {
   if (active.has(job.id)) return
   active.add(job.id)
   try {
-    const refs = await waitForImages(job.id, job.node)
+    const refs = await Promise.race([
+      waitForImages(job.id, job.node),
+      new Promise<never>((_, reject) => dropped.set(job.id, () => reject(new Error(t('jobs.interrupted'))))),
+    ])
     settled.add(job.id)
     const media = await Promise.all(refs.map((r) => toMedia(r, refKind(viewUrl(r)) === 'video' ? 'video' : job.kind)))
     const holder = editor.getShape(holderId)
@@ -143,14 +169,31 @@ async function finish(editor: Editor, holderId: TLShapeId, job: Job, onError: Er
     report(holderId, { srcs: media.map((m) => m.src) })
   } catch (e) {
     const holder = editor.getShape(holderId)
+    const stopped = !!(holder && jobOf(holder)?.stopping)
+    const kept = holder ? await keepPartial(editor, holder, job).catch(() => 0) : 0
     if (holder?.meta.temp) editor.deleteShape(holderId)
     else if (holder) editor.updateShape({ id: holderId, type: holder.type, meta: { ...holder.meta, job: null, quiet: false } })
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = (stopped ? t('jobs.interrupted') : errorText(e)) + (kept ? ` ${t('jobs.partialKept', kept)}` : '')
     report(holderId, { srcs: [], error: msg })
-    if (holder) onError(msg)
+    if (holder && !stopped) onError(msg)
   } finally {
     active.delete(job.id)
     settled.delete(job.id)
+    dropped.delete(job.id)
+  }
+}
+
+export async function stopJob(editor: Editor, holderId: TLShapeId) {
+  const holder = editor.getShape(holderId)
+  const job = holder && jobOf(holder)
+  if (!job || job.stopping) return
+  const mark = (stopping: boolean) => editor.updateShape({ id: holderId, type: holder.type, meta: { ...holder.meta, job: { ...job, stopping } as any } })
+  mark(true)
+  try {
+    if (await cancelPrompt(job.id)) dropped.get(job.id)?.()
+  } catch (e) {
+    if (editor.getShape(holderId)) mark(false)
+    throw e
   }
 }
 
@@ -158,14 +201,15 @@ export async function startJob(
   editor: Editor,
   holderId: TLShapeId,
   build: Promise<Built>,
-  opts: { name: string; kind?: MediaKind; placer?: string; extra?: Record<string, unknown> },
+  opts: { name: string; kind?: MediaKind; placer?: string; extra?: Record<string, unknown>; runOn?: string },
   onError: ErrorSink,
 ) {
   try {
-    const { graph, result } = await build
+    const { graph, result, partial } = await build
     const job: Job = {
-      id: await queuePrompt(graph),
+      id: await queuePrompt(graph, opts.runOn),
       node: result,
+      ...(partial ? { partial } : {}),
       name: opts.name,
       kind: opts.kind ?? 'image',
       ...(opts.placer ? { placer: opts.placer } : {}),
@@ -184,9 +228,9 @@ export async function startJob(
   }
 }
 
-export function freeSpot(editor: Editor, w: number, h: number, from?: [number, number]): [number, number] {
+export function freeSpot(editor: Editor, w: number, h: number, from?: [number, number], inside?: TLParentId): [number, number] {
   const center = editor.getViewportPageBounds().center
-  const boxes = editor.getCurrentPageShapes().map((s) => editor.getShapePageBounds(s)!).filter(Boolean)
+  const boxes = editor.getCurrentPageShapes().filter((s) => s.id !== inside).map((s) => editor.getShapePageBounds(s)!).filter(Boolean)
   let [x, y] = from ?? [center.x - w / 2, center.y - h / 2]
   for (let i = 0; i < 200; i++) {
     const hit = boxes.find((b) => x < b.maxX + GAP && x + w + GAP > b.minX && y < b.maxY + GAP && y + h + GAP > b.minY)

@@ -1,6 +1,6 @@
 import { createShapeId, type Editor, type TLShape, type TLShapeId } from 'tldraw'
 
-import { loadNamed, loadWorkflow, mediaMeta, refKind, uploadImage, viewUrl, type PromptGraph, type RefKind } from './comfy'
+import { defaultTarget, loadNamed, loadWorkflow, mediaMeta, refKind, uploadImage, validTarget, viewUrl, type PromptGraph, type RefKind } from './comfy'
 import type { LoraPick } from './loras'
 import { ask, stripThink } from './llm'
 import { freeSpot, spawnHolder, startJob, type ErrorSink, type GenInfo } from './jobs'
@@ -88,6 +88,7 @@ export function colorsOf(shape: GeneratorShape): string[] {
 
 export const negativeOf = (shape: GeneratorShape) => (shape.meta.negative as string | undefined) ?? ''
 export const seedOf = (shape: GeneratorShape) => (shape.meta.seed as number | null | undefined) ?? null
+export const runOnOf = (shape: GeneratorShape) => validTarget(shape.meta.runOn) ?? defaultTarget()
 export const lorasOf = (shape: GeneratorShape) => (shape.meta.loras as LoraPick[] | undefined) ?? []
 
 function applySeed(graph: PromptGraph, seed: number) {
@@ -131,11 +132,11 @@ async function generateGraph(shape: GeneratorShape): Promise<Built> {
     colors.length > 0 && palettePrompt(colors),
   ].filter(Boolean).join(' ')
   if (isVideo(workflow)) {
+    const area = VIDEO_AREAS[shape.props.resolution] ?? VIDEO_AREAS['768p']
     const scenes = scenesOf(shape).filter((sc) => sc.prompt.trim())
     if (scenes.length) {
-      return storyboardGraph(scenes.map((sc) => ({ ...sc, prompt: [sc.prompt, suffix].filter(Boolean).join(', ') })), ratioOf(ratio), refs[0] ? annotated(refs[0]) : null)
+      return storyboardGraph(scenes.map((sc) => ({ ...sc, prompt: [sc.prompt, suffix].filter(Boolean).join(', ') })), ratioOf(ratio), refs[0] ? annotated(refs[0]) : null, area)
     }
-    const area = VIDEO_AREAS[shape.props.resolution] ?? VIDEO_AREAS['768p']
     const mode = videoModeOf(shape)
     if (mode === 'refs' && refs.length) return r2vGraph(refs.map((src) => ({ file: annotated(src), kind: refKind(src) })), prompt, ratioOf(ratio), duration, area)
     const motion = motionOf(shape)
@@ -152,7 +153,14 @@ async function generateGraph(shape: GeneratorShape): Promise<Built> {
   }
   const [width, height] = targetSize(shape.props)
   if (model?.id === CUSTOM_GENERATE) {
-    const custom = await customGraph('generate', { prompt, width, height, count }, transparent ? withAlpha : undefined)
+    const loras = lorasOf(shape)
+    const custom = await customGraph('generate', { prompt, width, height, count }, (graph, markers, result) => {
+      if (loras.length) {
+        if (!markers.unet) throw new Error(t('customWorkflows.needsUnet', model.label))
+        applyLoras(graph, markers.unet, loras)
+      }
+      if (transparent) withAlpha(graph, markers, result)
+    })
     if (!custom) throw new Error(t('customWorkflows.generateGone', model.label))
     return custom
   }
@@ -196,7 +204,7 @@ export function generate(editor: Editor, shape: GeneratorShape, onError: ErrorSi
   const name = shape.props.prompt || scenesOf(shape)[0]?.prompt || ''
   const seed = seedOf(shape) ?? randomSeed()
   const built = generateGraph(shape).then((b) => { applySeed(b.graph, seed); return b })
-  return startJob(editor, shape.id, built, { name: name.slice(0, 32), kind, extra: { seed } }, onError)
+  return startJob(editor, shape.id, built, { name: name.slice(0, 32), kind, extra: { seed }, runOn: runOnOf(shape) }, onError)
 }
 
 export function genInfoOf(shape: TLShape): GenInfo | null {
