@@ -25,12 +25,13 @@ In ComfyUI right-click a node → **Title** and add a marker:
 | `@image2` | Load Image | a second image (style reference) |
 | `@mask` | Load Image (as Mask) or Load Image | the area to change, white = change |
 | `@last` | Load Image | the last frame of a video |
+| `@audio` | Load Audio | the selected recording |
 | `@prompt` | a node with the text as a widget: CLIP Text Encode, TextEncodeQwenImageEdit, String (Multiline)... | the prompt |
 | `@lyrics` | a node with the lyrics as a widget: YuE2 Generate Music, MiniMax Music 3 Text Encode, String (Multiline)... | the lyrics |
 | `@size` | a node with `width` and `height`, e.g. Empty Latent Image | width and height (and `batch_size` when there is no `@count`) |
 | `@width`, `@height` | Int | width and height, when they are separate |
 | `@count` | Int, or a node with `batch_size` / `amount` | how many results |
-| `@seconds` | Int / Float, or a node with `seconds` / `duration` / `max_duration` | video or music length in **seconds** |
+| `@seconds` | Int / Float, or a node with `seconds` / `duration` / `max_duration` | video or audio length in **seconds** |
 | `@unet` | Load Diffusion Model, Load Checkpoint... (first output is the MODEL) | the LoRAs picked under **Advanced**, chained after it |
 | `@save` | Save Image, Save Video, Preview Image... | the result. Needed only when the workflow has several end nodes |
 
@@ -67,6 +68,9 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 | Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode. Reference, motion control, lip sync and storyboard keep the built-in model. |
 | Animate image | `@image`, `@prompt` | `@size`, `@seconds`, `@last` | With loop on, `@last` gets the source image again. |
 | Music | `@prompt` | `@lyrics`, `@seconds` | Appears as an extra model in the audio dialog. `@prompt` gets the style. Empty lyrics are sent as `[instrumental]`. When several nodes need the same text or length, link them to one String or Float node and mark that node. |
+| Voiceover | `@prompt` | | Replaces the built-in model. The workflow picks its own voice, so the voice setting is not passed. |
+| Voice clone | `@audio`, `@prompt` | | `@audio` gets the selected recording, `@prompt` the text to read. |
+| Sound effect | `@prompt` | `@seconds` | Replaces the built-in model. |
 
 If ComfyArt has an image to pass (a first frame, a last frame, a style reference) and the workflow has no marker for it, the run fails with a message instead of ignoring the image.
 

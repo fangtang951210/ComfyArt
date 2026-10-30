@@ -55,12 +55,16 @@ async function audioGraph(spec: AudioSpec): Promise<Built> {
     return { graph: g, result: id.save }
   }
   if (spec.kind === 'sfx') {
+    const custom = await customGraph('sfx', { prompt: spec.prompt, seconds: spec.seconds })
+    if (custom) return custom
     const { graph: g, id } = await loadNamed('sfx-stable-audio.api.json', 'prompt', 'seconds', 'sampler', 'save')
     g[id.prompt].inputs.text = spec.prompt
     g[id.seconds].inputs.seconds = spec.seconds
     g[id.sampler].inputs.seed = randomSeed()
     return { graph: g, result: id.save }
   }
+  const custom = await (spec.kind === 'speech' ? customGraph('speech', { prompt: spec.text }) : customGraph('clone', { audio: annotated(spec.reference), prompt: spec.text }))
+  if (custom) return custom
   if (spec.kind === 'speech' && cloudMode()) {
     const { graph: g, id } = await loadNamed('speech-qwen3tts.api.json', 'prompt', 'save')
     Object.assign(g[id.prompt].inputs, { text: spec.text, speaker: spec.voice, seed: randomSeed() })

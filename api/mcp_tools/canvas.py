@@ -183,7 +183,8 @@ SPECS: dict[str, dict] = {
         "Read text aloud as an audio element. voice is a built-in voice id (zf_/zm_ Chinese female/male, "
         "af_/am_ American, bf_/bm_ British, jf_/jm_ Japanese; default zf_xiaoxiao; on Comfy Cloud the Qwen3-TTS speakers "
         "Serena, Vivian, Uncle_fu, Dylan, Eric, Ryan, Aiden, Ono_anna, Sohee; default Serena), or pass reference "
-        "(an audio shape id) to clone that recording's voice. Returns ids for wait_generation.",
+        "(an audio shape id) to clone that recording's voice. A custom speech workflow picks its own voice. "
+        "Returns ids for wait_generation.",
         {"text": {"type": "string"}, "voice": {"type": "string"}, "reference": _ID}, ["text"], approval="生成配音"),
     "edit_elements": _tool(
         "Turn the text inside an image shape into editable text: OCR finds each line, the text is erased "
@@ -274,7 +275,7 @@ SPECS: dict[str, dict] = {
         ["action"]),
     "custom_workflow": _tool(
         "Connect the user's own ComfyUI workflow to a ComfyArt feature (image generation, edit, inpaint, "
-        "upscale, video, music...). action rules: how to mark the nodes, read it first. list: each feature's "
+        "upscale, video, music, speech, sfx...). action rules: how to mark the nodes, read it first. list: each feature's "
         "markers, its uploaded files and the one in use. check: validate workflow (API-format JSON "
         "object) or file for a feature and report what to fix. install: save workflow as name for "
         "feature and use it (refused while check has errors). assign: give feature one of its files, or "

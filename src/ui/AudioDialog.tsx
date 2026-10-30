@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { atom, useValue, type Editor } from 'tldraw'
 
 import { generateAudio, musicModels, SFX_SECONDS, voices, type AudioSpec } from '../assetGen'
+import { workflowConfigAtom } from '../customWorkflows'
 import { AUDIO, clock, type AudioShape } from '../shapes/EmbedShapes'
 import { Modal } from './Modal'
 import { Chips } from './Chips'
@@ -24,12 +25,13 @@ export function AudioDialog({ editor, onError }: { editor: Editor; onError: (msg
   const [pickedModel, setModel] = useState(models[0].id)
   const model = models.find((m) => m.id === pickedModel) ?? models[0]
   const [picked, setVoice] = useState('')
+  const speechFile = useValue('speech workflow', () => workflowConfigAtom.get().speech, [])
   const reference = useValue('selected audio', () => {
     const s = editor.getOnlySelectedShape()
     return s?.type === AUDIO ? (s as AudioShape).props.src : null
   }, [editor])
   if (!open) return null
-  const list = voices()
+  const list = speechFile ? [speechFile.replace(/\.json$/, '')] : voices()
   const voice = picked === CLONE || list.includes(picked) ? picked : list[0]
   const close = () => audioDialogAtom.set(false)
   const musicSeconds = Math.min(seconds, model.maxSeconds)

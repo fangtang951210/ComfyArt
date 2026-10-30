@@ -1,8 +1,8 @@
 import { titleTags, type PromptGraph } from './comfy'
 import { t } from './i18n'
 
-export type CustomAction = 'generate' | 'edit' | 'style' | 'inpaint' | 'expand' | 'upscale' | 'cutout' | 'erase' | 'angles' | 'layers' | 'video' | 'animate' | 'music'
-export type Marker = 'image' | 'image2' | 'mask' | 'last' | 'prompt' | 'lyrics' | 'size' | 'width' | 'height' | 'count' | 'seconds' | 'unet' | 'save'
+export type CustomAction = 'generate' | 'edit' | 'style' | 'inpaint' | 'expand' | 'upscale' | 'cutout' | 'erase' | 'angles' | 'layers' | 'video' | 'animate' | 'music' | 'speech' | 'clone' | 'sfx'
+export type Marker = 'image' | 'image2' | 'mask' | 'last' | 'audio' | 'prompt' | 'lyrics' | 'size' | 'width' | 'height' | 'count' | 'seconds' | 'unet' | 'save'
 
 export type CustomGroup = 'image' | 'edit' | 'tools' | 'video' | 'audio'
 
@@ -22,6 +22,9 @@ export const CUSTOM_ACTIONS: ActionSpec[] = [
   { id: 'video', group: 'video', required: ['prompt', 'size'], optional: ['image', 'last', 'seconds'], note: 'Replaces the built-in model in the video generator\'s first/last frame mode (reference, motion, lip sync and storyboard modes stay built in). A first or last frame given to a workflow without @image / @last is an error.' },
   { id: 'animate', group: 'video', required: ['image', 'prompt'], optional: ['size', 'seconds', 'last'], note: 'Animate an image into a short clip. With loop on, @last receives the source image again so the clip ends where it starts.' },
   { id: 'music', group: 'audio', required: ['prompt'], optional: ['lyrics', 'seconds'], note: 'Text to music. Shows up as an extra model in the audio dialog. @prompt receives the style. Empty lyrics are sent as [instrumental]; lyrics given to a workflow with no @lyrics are an error. Without @seconds the workflow keeps its own length. When several nodes need the same text or length (YuE2 ABC and music nodes, ACE-Step encoder and latent), link them to one String or Float node and mark that node.' },
+  { id: 'speech', group: 'audio', required: ['prompt'], optional: [], note: 'Voiceover. Replaces the built-in model when no recording is cloned. @prompt receives the text to read. The workflow picks its own voice, so the voice setting is not passed.' },
+  { id: 'clone', group: 'audio', required: ['audio', 'prompt'], optional: [], note: 'Voice clone. @audio receives the selected recording and @prompt the text to read.' },
+  { id: 'sfx', group: 'audio', required: ['prompt'], optional: ['seconds'], note: 'Sound effect. Replaces the built-in model. @prompt receives the description. Without @seconds the workflow keeps its own length.' },
 ]
 
 export const MARKERS: { id: Marker; fill: string }[] = [
@@ -29,20 +32,21 @@ export const MARKERS: { id: Marker; fill: string }[] = [
   { id: 'image2', fill: 'Load Image: a second image' },
   { id: 'mask', fill: 'LoadImageMask (channel is set to alpha) or LoadImage (use its MASK output): white = area to change' },
   { id: 'last', fill: 'Load Image: the last frame of a video' },
+  { id: 'audio', fill: 'Load Audio: the input recording' },
   { id: 'prompt', fill: 'a node holding the text as a widget, e.g. CLIPTextEncode (text), TextEncodeQwenImageEdit (prompt), String (Multiline) (value)' },
   { id: 'lyrics', fill: 'a node holding the lyrics as a widget, e.g. YuE2GenerateMusic or MiniMaxMusic3TextEncode (lyrics), String (Multiline) (value)' },
   { id: 'size', fill: 'a node with width and height widgets, e.g. EmptyLatentImage; its batch_size also gets the image count when there is no @count' },
   { id: 'width', fill: 'an Int node or any node with a width widget' },
   { id: 'height', fill: 'an Int node or any node with a height widget' },
   { id: 'count', fill: 'an Int node or a node with batch_size / amount: how many results' },
-  { id: 'seconds', fill: 'an Int or Float node or a node with seconds / duration / max_duration: video or music length in seconds (not frames)' },
+  { id: 'seconds', fill: 'an Int or Float node or a node with seconds / duration / max_duration: video or audio length in seconds (not frames)' },
   { id: 'unet', fill: 'the node whose first output is the MODEL, e.g. Load Diffusion Model or Load Checkpoint: LoRAs picked under Advanced are chained after it' },
   { id: 'save', fill: 'the output node (Save Image, Save Video, Preview Image...). Needed only when the workflow has more than one end node' },
 ]
 
 const LOADERS = ['LoadImage', 'LoadImageMask']
 const IMAGE_MARKERS: Marker[] = ['image', 'image2', 'mask', 'last']
-const TEXT_KEYS = ['text', 'prompt', 'value', 'string', 'tags', 'caption', 'style']
+const TEXT_KEYS = ['text', 'prompt', 'value', 'string', 'tags', 'caption', 'style', 'target_text']
 const LYRICS_KEYS = ['lyrics', 'value', 'text', 'string']
 const NUMBER_KEYS: Partial<Record<Marker, string[]>> = {
   width: ['value', 'width'], height: ['value', 'height'], count: ['value', 'batch_size', 'amount'], seconds: ['value', 'seconds', 'duration', 'max_duration'],
@@ -104,6 +108,7 @@ function numberKey(node: PromptGraph[string], marker: Marker): string | null {
 function fillProblem(graph: PromptGraph, id: string, marker: Marker): string | null {
   const node = graph[id]
   if (IMAGE_MARKERS.includes(marker)) return LOADERS.includes(node.class_type) ? null : t('customWorkflows.needsLoader', `@${marker}`, label(graph, id))
+  if (marker === 'audio') return node.class_type === 'LoadAudio' ? null : t('customWorkflows.needsAudioLoader', label(graph, id))
   if (marker === 'prompt') return textKey(node) ? null : t('customWorkflows.noTextWidget', label(graph, id))
   if (marker === 'lyrics') return textKey(node, LYRICS_KEYS) ? null : t('customWorkflows.noTextWidget', label(graph, id))
   if (marker === 'size') return ['width', 'height'].every((k) => typeof node.inputs[k] === 'number') ? null : t('customWorkflows.noSizeWidgets', label(graph, id))
@@ -143,7 +148,7 @@ export function checkWorkflow(graph: PromptGraph, action: CustomAction): Check {
   return { markers, errors, warnings }
 }
 
-export interface CustomValues { image?: string; image2?: string; mask?: string; last?: string; prompt?: string; lyrics?: string; width?: number; height?: number; count?: number; seconds?: number }
+export interface CustomValues { image?: string; image2?: string; mask?: string; last?: string; audio?: string; prompt?: string; lyrics?: string; width?: number; height?: number; count?: number; seconds?: number }
 
 export function fillWorkflow(graph: PromptGraph, markers: Markers, values: CustomValues) {
   for (const [marker, id] of Object.entries(markers) as [Marker, string][]) {
@@ -153,7 +158,8 @@ export function fillWorkflow(graph: PromptGraph, markers: Markers, values: Custo
     if (IMAGE_MARKERS.includes(marker)) {
       node.inputs.image = value
       if (node.class_type === 'LoadImageMask') node.inputs.channel = 'alpha'
-    } else if (marker === 'lyrics') node.inputs[textKey(node, LYRICS_KEYS)!] = value || NO_LYRICS
+    } else if (marker === 'audio') node.inputs.audio = value
+    else if (marker === 'lyrics') node.inputs[textKey(node, LYRICS_KEYS)!] = value || NO_LYRICS
     else node.inputs[marker === 'prompt' ? textKey(node)! : numberKey(node, marker)!] = value
   }
   if (markers.size && values.width && values.height) {
