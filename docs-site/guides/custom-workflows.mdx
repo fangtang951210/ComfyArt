@@ -26,10 +26,11 @@ In ComfyUI right-click a node → **Title** and add a marker:
 | `@mask` | Load Image (as Mask) or Load Image | the area to change, white = change |
 | `@last` | Load Image | the last frame of a video |
 | `@prompt` | a node with the text as a widget: CLIP Text Encode, TextEncodeQwenImageEdit, String (Multiline)... | the prompt |
+| `@lyrics` | a node with the lyrics as a widget: YuE2 Generate Music, MiniMax Music 3 Text Encode, String (Multiline)... | the lyrics |
 | `@size` | a node with `width` and `height`, e.g. Empty Latent Image | width and height (and `batch_size` when there is no `@count`) |
 | `@width`, `@height` | Int | width and height, when they are separate |
 | `@count` | Int, or a node with `batch_size` / `amount` | how many results |
-| `@seconds` | Int / Float, or a node with `seconds` / `duration` | video length in **seconds** |
+| `@seconds` | Int / Float, or a node with `seconds` / `duration` / `max_duration` | video or music length in **seconds** |
 | `@unet` | Load Diffusion Model, Load Checkpoint... (first output is the MODEL) | the LoRAs picked under **Advanced**, chained after it |
 | `@save` | Save Image, Save Video, Preview Image... | the result. Needed only when the workflow has several end nodes |
 
@@ -47,7 +48,7 @@ In ComfyUI choose **Workflow → Export (API)**. A normally saved workflow (with
 
 ### 3. Upload and assign
 
-Open the project menu (top-left icon) → **Custom workflows**. Features are grouped into image generation, image editing, image tools and video. Click the upload button next to a feature: ComfyArt checks the markers, says what is missing, and uses the workflow for that feature once it passes. Each feature keeps its files in its own folder, `comfyart/workflows/<feature>/` in your ComfyUI user folder (`edit`, `upscale`, `video`...), and its menu lists only those. Pick **Built in** to switch back. ComfyArt never deletes your workflows; to remove one, delete its file in that folder; a feature whose file is gone goes back to built in.
+Open the project menu (top-left icon) → **Custom workflows**. Features are grouped into image generation, image editing, image tools, video and audio. Click the upload button next to a feature: ComfyArt checks the markers, says what is missing, and uses the workflow for that feature once it passes. Each feature keeps its files in its own folder, `comfyart/workflows/<feature>/` in your ComfyUI user folder (`edit`, `upscale`, `video`...), and its menu lists only those. Pick **Built in** to switch back. ComfyArt never deletes your workflows; to remove one, delete its file in that folder; a feature whose file is gone goes back to built in.
 
 ## Markers per feature
 
@@ -65,6 +66,7 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 | Split layers | `@image` | `@prompt`, `@count` | `@count` is the number of layers. |
 | Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode. Reference, motion control, lip sync and storyboard keep the built-in model. |
 | Animate image | `@image`, `@prompt` | `@size`, `@seconds`, `@last` | With loop on, `@last` gets the source image again. |
+| Music | `@prompt` | `@lyrics`, `@seconds` | Appears as an extra model in the audio dialog. `@prompt` gets the style. Empty lyrics are sent as `[instrumental]`. When several nodes need the same text or length, link them to one String or Float node and mark that node. |
 
 If ComfyArt has an image to pass (a first frame, a last frame, a style reference) and the workflow has no marker for it, the run fails with a message instead of ignoring the image.
 

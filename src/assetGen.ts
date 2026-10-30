@@ -1,6 +1,8 @@
 import { createShapeId, type Editor, type TLImageShape, type TLShapeId } from 'tldraw'
 
 import { cloudMode, loadNamed } from './comfy'
+import { NO_LYRICS } from './customMarkers'
+import { CUSTOM_MUSIC, customGraph, workflowConfigAtom } from './customWorkflows'
 import { freeSpot, GAP, registerPlacer, rowSpots, selectResults, spawnHolder, startJob, type ErrorSink } from './jobs'
 import { AUDIO, AUDIO_SIZE, MODEL } from './shapes/EmbedShapes'
 import { GENERATOR } from './shapes/GeneratorShape'
@@ -11,11 +13,15 @@ const KOKORO_VOICES = ['zf_xiaoxiao', 'zf_xiaoyi', 'zf_xiaobei', 'zf_xiaoni', 'z
 const QWEN_VOICES = ['Serena', 'Vivian', 'Uncle_fu', 'Dylan', 'Eric', 'Ryan', 'Aiden', 'Ono_anna', 'Sohee']
 export const voices = () => (cloudMode() ? QWEN_VOICES : KOKORO_VOICES)
 const LANGS: Record<string, string> = { a: 'English', b: 'English (British)', j: 'Japanese', z: 'Mandarin Chinese', e: 'Spanish', f: 'French', h: 'Hindi', i: 'Italian', p: 'Brazilian Portuguese' }
-export const MUSIC_SECONDS = [15, 30, 60, 120]
 export const MUSIC_MODELS = [
-  { id: 'music-minimax3.api.json', label: 'MiniMax Music 3', desc: 'Complete songs with stable structure and strong vocals. Put genre, tempo, key, language and vocal style in the prompt.' },
-  { id: 'music-ace-step15.api.json', label: 'ACE-Step 1.5', desc: 'Fast. Takes tempo (bpm), lyrics language and key as settings.' },
+  { id: 'music-minimax3.api.json', label: 'MiniMax Music 3', maxSeconds: 360, desc: 'Complete songs with stable structure and strong vocals. Put genre, tempo, key, language and vocal style in the prompt.' },
+  { id: 'music-ace-step15.api.json', label: 'ACE-Step 1.5', maxSeconds: 1000, desc: 'Fast. Takes tempo (bpm), lyrics language and key as settings.' },
+  { id: 'music-yue2.api.json', label: 'YuE2', maxSeconds: 900, desc: 'Plans melody and chords first, then sings the lyrics. Put language, genre, vocal, tempo and instruments in the prompt. Max length; the song can finish earlier.' },
 ]
+export function musicModels() {
+  const file = workflowConfigAtom.get().music
+  return file ? [...MUSIC_MODELS, { id: CUSTOM_MUSIC, label: file.replace(/\.json$/, ''), maxSeconds: 1000, desc: t('customWorkflows.customModelDesc') }] : MUSIC_MODELS
+}
 export const SFX_SECONDS = [3, 5, 8, 15]
 const MODEL_SIZE = 480
 
@@ -27,11 +33,20 @@ export type AudioSpec =
 
 async function audioGraph(spec: AudioSpec): Promise<Built> {
   if (spec.kind === 'music') {
+    if (spec.model === CUSTOM_MUSIC) {
+      const custom = await customGraph('music', { prompt: spec.prompt, lyrics: spec.lyrics, seconds: spec.seconds })
+      if (!custom) throw new Error(t('customWorkflows.musicGone'))
+      return custom
+    }
     const { graph: g, id } = await loadNamed(spec.model, 'prompt', 'seconds', 'sampler', 'save')
     const seed = randomSeed()
-    const lyrics = spec.lyrics || '[instrumental]'
+    const lyrics = spec.lyrics || NO_LYRICS
     if (g[id.prompt].class_type === 'MiniMaxMusic3TextEncode') {
       Object.assign(g[id.prompt].inputs, { caption: spec.prompt, lyrics, seed, max_duration: spec.seconds })
+    } else if (g[id.prompt].class_type === 'YuE2GenerateMusic') {
+      const song = { style: spec.prompt, lyrics, seed }
+      Object.assign(g[id.prompt].inputs, song, { max_duration: spec.seconds })
+      Object.assign(g[(g[id.prompt].inputs.abc as [string, number])[0]].inputs, song)
     } else {
       Object.assign(g[id.prompt].inputs, { tags: spec.prompt, lyrics, seed, duration: spec.seconds, ...(spec.bpm ? { bpm: spec.bpm } : {}), ...(spec.language ? { language: spec.language } : {}), ...(spec.key ? { keyscale: spec.key } : {}) })
       g[id.seconds].inputs.seconds = spec.seconds

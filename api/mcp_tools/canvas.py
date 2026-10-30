@@ -170,8 +170,8 @@ SPECS: dict[str, dict] = {
         "Generate a piece of music as an audio element on the canvas. model: a music model id from list_models "
         "(default the first). prompt: English description of genre, mood, instruments, tempo and vocal type. "
         "lyrics optional (use [intro]/[verse]/[chorus]/[outro] lines; omit for an instrumental). duration in "
-        "seconds (default 30). bpm, language (e.g. en, ko, zh, ja) and key (e.g. F minor) are used by ACE-Step; "
-        "MiniMax Music 3 reads them from the prompt. Returns ids for wait_generation.",
+        "seconds (default 30, up to the model's maxSeconds in list_models). bpm, language (e.g. en, ko, zh, ja) and key (e.g. F minor) are used by ACE-Step; "
+        "MiniMax Music 3 and YuE2 read them from the prompt. Returns ids for wait_generation.",
         {"prompt": {"type": "string"}, "lyrics": {"type": "string"}, "duration": {"type": "integer"}, "model": {"type": "string"},
          "bpm": {"type": "integer"}, "language": {"type": "string"}, "key": {"type": "string"}},
         ["prompt"], approval="生成配乐"),
@@ -274,7 +274,7 @@ SPECS: dict[str, dict] = {
         ["action"]),
     "custom_workflow": _tool(
         "Connect the user's own ComfyUI workflow to a ComfyArt feature (image generation, edit, inpaint, "
-        "upscale, video...). action rules: how to mark the nodes, read it first. list: each feature's "
+        "upscale, video, music...). action rules: how to mark the nodes, read it first. list: each feature's "
         "markers, its uploaded files and the one in use. check: validate workflow (API-format JSON "
         "object) or file for a feature and report what to fix. install: save workflow as name for "
         "feature and use it (refused while check has errors). assign: give feature one of its files, or "

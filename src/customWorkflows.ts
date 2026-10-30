@@ -8,6 +8,7 @@ const DIR = 'comfyart/workflows'
 const CONFIG = 'comfyart/workflow-config.json'
 
 export const CUSTOM_GENERATE = 'custom:generate'
+export const CUSTOM_MUSIC = 'custom:music'
 export const workflowConfigAtom = atom<Partial<Record<CustomAction, string>>>('workflow config', {})
 
 type Link = [string, number]
@@ -50,6 +51,7 @@ export async function customGraph(action: CustomAction, values: CustomValues, ad
     if (values[key] && !markers[marker]) throw new Error(t('customWorkflows.unusedInput', file, `@${marker}`))
   }
   if (markers.image && !values.image) throw new Error(t('customWorkflows.needsImage', file))
+  if (values.lyrics && !markers.lyrics) throw new Error(t('customWorkflows.unusedLyrics', file))
   fillWorkflow(graph, markers, markers.image2 && !values.image2 ? { ...values, image2: values.image } : values)
   const result = outputOf(graph, markers)!
   adapt?.(graph, markers, result)

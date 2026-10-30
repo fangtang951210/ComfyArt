@@ -131,7 +131,7 @@ def test_music_model_workflows_take_the_music_fields():
     for model in ids:
         graph = _workflow(model)
         node = {name: graph[_named(graph, name)[0]] for name in names}
-        assert node["prompt"]["class_type"] in {"MiniMaxMusic3TextEncode", "TextEncodeAceStepAudio1.5"}, model
+        assert node["prompt"]["class_type"] in {"MiniMaxMusic3TextEncode", "TextEncodeAceStepAudio1.5", "YuE2GenerateMusic"}, model
         assert {"lyrics", "seed"} <= set(node["prompt"]["inputs"]), model
         assert {"max_duration", "seconds"} & set(node["seconds"]["inputs"]), model
         assert node["sampler"]["class_type"] in SAMPLERS, model

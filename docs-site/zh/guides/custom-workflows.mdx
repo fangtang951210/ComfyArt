@@ -26,10 +26,11 @@ ComfyArt 靠**节点标题**找到要填的节点：给接收图片、提示词�
 | `@mask` | Load Image (as Mask) 或 Load Image | 要修改的区域，白色 = 修改 |
 | `@last` | Load Image | 视频的尾帧 |
 | `@prompt` | 文本直接写在节点上的节点：CLIP Text Encode、TextEncodeQwenImageEdit、String (Multiline) 等 | 提示词 |
+| `@lyrics` | 歌词直接写在节点上的节点：YuE2 Generate Music、MiniMax Music 3 Text Encode、String (Multiline) 等 | 歌词 |
 | `@size` | 带 `width` 和 `height` 的节点，比如 Empty Latent Image | 宽和高（没有 `@count` 时还会填 `batch_size`） |
 | `@width`、`@height` | Int | 宽和高分开时用 |
 | `@count` | Int，或带 `batch_size` / `amount` 的节点 | 生成几个 |
-| `@seconds` | Int / Float，或带 `seconds` / `duration` 的节点 | 视频时长，单位是**秒** |
+| `@seconds` | Int / Float，或带 `seconds` / `duration` / `max_duration` 的节点 | 视频或音乐时长，单位是**秒** |
 | `@unet` | Load Diffusion Model、Load Checkpoint 等（第一个输出是 MODEL） | **高级**里选的 LoRA，串在它后面 |
 | `@save` | Save Image、Save Video、Preview Image 等 | 结果节点。只有工作流有多个末端节点时才需要 |
 
@@ -47,7 +48,7 @@ ComfyArt 自带的工作流（`custom_nodes/ComfyArt/workflows/`）也是这样�
 
 ### 3. 上传并指定
 
-打开项目菜单（左上角图标）→ **自定义工作流**。功能按图像生成、图像编辑、图像工具和视频分组。点某个功能旁边的上传按钮：ComfyArt 会检查标记、告诉你缺了什么，通过后就让这个功能用上它。每个功能的文件放在各自的文件夹里，即 ComfyUI 用户目录下的 `comfyart/workflows/<功能>/`（`edit`、`upscale`、`video` 等），下拉菜单里只列这个文件夹的文件。想换回来就选 **内置**。ComfyArt 不会删除你的工作流；不要的直接去那个文件夹里删文件；正在用的文件被删后，这个功能会自动回到内置。
+打开项目菜单（左上角图标）→ **自定义工作流**。功能按图像生成、图像编辑、图像工具、视频和音频分组。点某个功能旁边的上传按钮：ComfyArt 会检查标记、告诉你缺了什么，通过后就让这个功能用上它。每个功能的文件放在各自的文件夹里，即 ComfyUI 用户目录下的 `comfyart/workflows/<功能>/`（`edit`、`upscale`、`video` 等），下拉菜单里只列这个文件夹的文件。想换回来就选 **内置**。ComfyArt 不会删除你的工作流；不要的直接去那个文件夹里删文件；正在用的文件被删后，这个功能会自动回到内置。
 
 ## 各功能需要的标记
 
@@ -65,6 +66,7 @@ ComfyArt 自带的工作流（`custom_nodes/ComfyArt/workflows/`）也是这样�
 | 图层拆分 | `@image` | `@prompt`、`@count` | `@count` 是层数。 |
 | 视频生成 | `@prompt`、`@size` | `@image`、`@last`、`@seconds` | 用于首尾帧模式。参考生视频、动作控制、对口型和分镜仍用内置模型。 |
 | 动态图片 | `@image`、`@prompt` | `@size`、`@seconds`、`@last` | 开启循环时，`@last` 会再收到一次原图。 |
+| 配乐 | `@prompt` | `@lyrics`、`@seconds` | 作为一个新模型出现在音频生成对话框里。`@prompt` 接收风格。歌词留空时传 `[instrumental]`。多个节点要用同一段文本或时长时，把它们连到同一个 String 或 Float 节点，再标记那个节点。 |
 
 ComfyArt 有图片要传（首帧、尾帧、风格参考图）而工作流没有对应标记时，会报错说明，而不是悄悄不用这张图。
 
