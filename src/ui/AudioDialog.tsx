@@ -16,9 +16,10 @@ export const audioDialogAtom = atom<boolean>('audio dialog', false)
 export function AudioDialog({ editor, onError }: { editor: Editor; onError: (msg: string) => void }) {
   const open = useValue(audioDialogAtom)
   const [tab, setTab] = useState<Tab>('music')
-  const [prompt, setPrompt] = useState('')
+  const [prompts, setPrompts] = useState<Record<Tab, string>>({ music: '', speech: '', sfx: '' })
   const [lyrics, setLyrics] = useState('')
   const [seconds, setSeconds] = useState(30)
+  const [sfxSeconds, setSfxSeconds] = useState(8)
   const models = useValue('music models', musicModels, [])
   const [pickedModel, setModel] = useState(models[0].id)
   const model = models.find((m) => m.id === pickedModel) ?? models[0]
@@ -32,15 +33,12 @@ export function AudioDialog({ editor, onError }: { editor: Editor; onError: (msg
   const voice = picked === CLONE || list.includes(picked) ? picked : list[0]
   const close = () => audioDialogAtom.set(false)
   const musicSeconds = Math.min(seconds, model.maxSeconds)
-  const pick = (next: Tab) => {
-    setTab(next)
-    if (next !== 'speech') setSeconds(next === 'music' ? 30 : 8)
-  }
+  const prompt = prompts[tab]
   const spec = (): AudioSpec | null => {
     const text = prompt.trim()
     if (!text) return null
     if (tab === 'music') return { kind: 'music', model: model.id, prompt: text, lyrics: lyrics.trim(), seconds: musicSeconds }
-    if (tab === 'sfx') return { kind: 'sfx', prompt: text, seconds }
+    if (tab === 'sfx') return { kind: 'sfx', prompt: text, seconds: sfxSeconds }
     return voice === CLONE && reference ? { kind: 'clone', text, reference } : { kind: 'speech', text, voice: voice === CLONE ? list[0] : voice }
   }
   const run = () => {
@@ -53,13 +51,13 @@ export function AudioDialog({ editor, onError }: { editor: Editor; onError: (msg
   return (
     <Modal title={t('audio.generateAudio')} onClose={close}>
       <div className="ca-rename__body">
-        <Chips value={tab} options={TABS} onPick={pick} />
+        <Chips value={tab} options={TABS} onPick={setTab} />
         <textarea
           autoFocus
           className="ca-panel__prompt ca-panel__prompt--boxed"
           value={prompt}
           placeholder={tab === 'music' ? t('audio.musicPlaceholder') : tab === 'sfx' ? t('audio.sfxPlaceholder') : t('audio.speechPlaceholder')}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => setPrompts({ ...prompts, [tab]: e.target.value })}
           onKeyDown={(e) => e.stopPropagation()}
         />
         {tab === 'music' && (
@@ -83,7 +81,7 @@ export function AudioDialog({ editor, onError }: { editor: Editor; onError: (msg
           </div>
         ) : (
           <div className="ca-rename__field"><span>{t('audio.duration')}</span>
-            <Chips value={seconds} options={SFX_SECONDS.map((s) => [s, `${s}s`] as const)} onPick={setSeconds} />
+            <Chips value={sfxSeconds} options={SFX_SECONDS.map((s) => [s, `${s}s`] as const)} onPick={setSfxSeconds} />
           </div>
         )}
         <div className="ca-panel__foot">
