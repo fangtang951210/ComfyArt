@@ -2,7 +2,7 @@ import { createShapeId, type Editor, type TLImageShape, type TLShapeId } from 't
 
 import { cloudMode, loadNamed } from './comfy'
 import { NO_LYRICS } from './customMarkers'
-import { CUSTOM_MUSIC, customGraph, workflowConfigAtom } from './customWorkflows'
+import { CUSTOM_MODEL3D, CUSTOM_MUSIC, customGraph, workflowConfigAtom } from './customWorkflows'
 import { freeSpot, GAP, registerPlacer, rowSpots, selectResults, spawnHolder, startJob, type ErrorSink } from './jobs'
 import { AUDIO, AUDIO_SIZE, MODEL } from './shapes/EmbedShapes'
 import { GENERATOR } from './shapes/GeneratorShape'
@@ -101,9 +101,14 @@ export function generateAudio(editor: Editor, spec: AudioSpec, onError: ErrorSin
   return id
 }
 
-export type Model3d = 'trellis2' | 'pixal3d'
+export type Model3d = 'trellis2' | 'pixal3d' | typeof CUSTOM_MODEL3D
 
 async function modelGraph(image: string, model: Model3d): Promise<Built> {
+  if (model === CUSTOM_MODEL3D) {
+    const custom = await customGraph('model3d', { image })
+    if (!custom) throw new Error(t('customWorkflows.model3dGone'))
+    return custom
+  }
   const { graph: g, id } = await (model === 'pixal3d'
     ? loadNamed('image-to-3d-pixal3d.api.json', 'image', 'save')
     : loadNamed('image-to-3d-trellis2.api.json', 'image', 'save'))

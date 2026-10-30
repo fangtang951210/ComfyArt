@@ -1,11 +1,13 @@
 import { loadNamed, type PromptGraph, type RefKind } from './comfy'
-import { customGraph } from './customWorkflows'
+import { customGraph, resizeVideoTo } from './customWorkflows'
 import { randomSeed, type Built } from './workflows'
 
 export const VIDEO_TARGETS: [string, number][] = [['1080p', 1920], ['2K', 2560], ['4K', 3840]]
 const even = (v: number) => Math.round(v / 2) * 2
 
-export function cutoutVideoGraph(video: string): Built {
+export async function cutoutVideoGraph(video: string): Promise<Built> {
+  const custom = await customGraph('videoCutout', { video })
+  if (custom) return custom
   const graph: PromptGraph = {
     v1: { class_type: 'LoadVideo', inputs: { file: video } },
     v2: { class_type: 'GetVideoComponents', inputs: { video: ['v1', 0] } },
@@ -21,6 +23,8 @@ export function cutoutVideoGraph(video: string): Built {
 
 export async function upscaleVideoGraph(video: string, w: number, h: number, long: number): Promise<Built> {
   const k = long / Math.max(w, h)
+  const custom = await customGraph('videoUpscale', { video }, resizeVideoTo(even(w * k), even(h * k)))
+  if (custom) return custom
   const graph: PromptGraph = {
     v1: { class_type: 'LoadVideo', inputs: { file: video } },
     v2: { class_type: 'GetVideoComponents', inputs: { video: ['v1', 0] } },
@@ -177,7 +181,10 @@ export async function animateGraph(image: string, width: number, height: number,
 }
 
 export async function extendGraph(video: string, width: number, height: number, prompt: string, duration: number): Promise<Built> {
-  const { g, id } = await i2vGraph(prompt || 'Continue the shot naturally.', width / height, duration)
+  const text = prompt || 'Continue the shot naturally.'
+  const custom = await customGraph('extend', { video, prompt: text, seconds: duration })
+  if (custom) return custom
+  const { g, id } = await i2vGraph(text, width / height, duration)
   delete g[id.image]
   Object.assign(g, {
     v1: { class_type: 'LoadVideo', inputs: { file: video } },

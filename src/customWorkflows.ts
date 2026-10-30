@@ -9,6 +9,7 @@ const CONFIG = 'comfyart/workflow-config.json'
 
 export const CUSTOM_GENERATE = 'custom:generate'
 export const CUSTOM_MUSIC = 'custom:music'
+export const CUSTOM_MODEL3D = 'custom:model3d'
 export const workflowConfigAtom = atom<Partial<Record<CustomAction, string>>>('workflow config', {})
 
 type Link = [string, number]
@@ -93,6 +94,18 @@ export function resizeTo(width: number, height: number): Adapt {
   return (graph, _markers, result) => {
     graph.cw_size = { class_type: 'ImageScale', inputs: { image: graph[result].inputs.images, upscale_method: 'lanczos', width, height, crop: 'disabled' } }
     graph[result].inputs.images = ['cw_size', 0]
+  }
+}
+
+export function resizeVideoTo(width: number, height: number): Adapt {
+  return (graph, markers, result) => {
+    if (Array.isArray(graph[result].inputs.images)) return resizeTo(width, height)(graph, markers, result)
+    Object.assign(graph, {
+      cw_v1: { class_type: 'GetVideoComponents', inputs: { video: graph[result].inputs.video } },
+      cw_v2: { class_type: 'ImageScale', inputs: { image: ['cw_v1', 0], upscale_method: 'lanczos', width, height, crop: 'disabled' } },
+      cw_v3: { class_type: 'CreateVideo', inputs: { images: ['cw_v2', 0], audio: ['cw_v1', 1], fps: ['cw_v1', 2] } },
+    })
+    graph[result].inputs.video = ['cw_v3', 0]
   }
 }
 

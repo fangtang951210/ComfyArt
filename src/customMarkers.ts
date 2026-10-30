@@ -1,12 +1,12 @@
 import { titleTags, type PromptGraph } from './comfy'
 import { t } from './i18n'
 
-export type CustomAction = 'generate' | 'edit' | 'style' | 'inpaint' | 'expand' | 'upscale' | 'cutout' | 'erase' | 'angles' | 'layers' | 'video' | 'animate' | 'music' | 'speech' | 'clone' | 'sfx'
-export type Marker = 'image' | 'image2' | 'mask' | 'last' | 'audio' | 'prompt' | 'lyrics' | 'size' | 'width' | 'height' | 'count' | 'seconds' | 'unet' | 'save'
+export type CustomAction = 'generate' | 'edit' | 'style' | 'inpaint' | 'expand' | 'upscale' | 'cutout' | 'erase' | 'angles' | 'layers' | 'video' | 'animate' | 'extend' | 'videoUpscale' | 'videoCutout' | 'model3d' | 'music' | 'speech' | 'clone' | 'sfx'
+export type Marker = 'image' | 'image2' | 'mask' | 'last' | 'video' | 'audio' | 'prompt' | 'lyrics' | 'size' | 'width' | 'height' | 'count' | 'seconds' | 'unet' | 'save'
 
-export type CustomGroup = 'image' | 'edit' | 'tools' | 'video' | 'audio'
+export type CustomGroup = 'image' | 'edit' | 'tools' | 'video' | 'model' | 'audio'
 
-interface ActionSpec { id: CustomAction; group: CustomGroup; required: Marker[]; optional: Marker[]; needsImages?: boolean; note: string }
+interface ActionSpec { id: CustomAction; group: CustomGroup; required: Marker[]; optional: Marker[]; needsImages?: boolean; needsFrames?: boolean; note: string }
 
 export const CUSTOM_ACTIONS: ActionSpec[] = [
   { id: 'generate', group: 'image', required: ['prompt', 'size'], optional: ['count', 'unet'], note: 'Text to image. Shows up as an extra model in the image generator. Reference and base images are not passed. Transparent output is added by ComfyArt after @save, so @save needs an images input. LoRAs picked under Advanced need @unet.' },
@@ -21,6 +21,10 @@ export const CUSTOM_ACTIONS: ActionSpec[] = [
   { id: 'layers', group: 'tools', required: ['image'], optional: ['prompt', 'count'], note: '@count receives the number of layers. The result is several RGBA images.' },
   { id: 'video', group: 'video', required: ['prompt', 'size'], optional: ['image', 'last', 'seconds'], note: 'Replaces the built-in model in the video generator\'s first/last frame mode (reference, motion, lip sync and storyboard modes stay built in). A first or last frame given to a workflow without @image / @last is an error.' },
   { id: 'animate', group: 'video', required: ['image', 'prompt'], optional: ['size', 'seconds', 'last'], note: 'Animate an image into a short clip. With loop on, @last receives the source image again so the clip ends where it starts.' },
+  { id: 'extend', group: 'video', required: ['video', 'prompt'], optional: ['seconds'], note: 'Extend a video. @video receives the source and @seconds the length to add. The result is placed as a new video, so it should hold the original plus the new part.' },
+  { id: 'videoUpscale', group: 'video', required: ['video'], optional: [], needsFrames: true, note: 'ComfyArt resizes the result to the size the user picked, so @save needs a video or images input.' },
+  { id: 'videoCutout', group: 'video', required: ['video'], optional: [], note: 'Video background removal.' },
+  { id: 'model3d', group: 'model', required: ['image'], optional: [], note: 'Image to 3D. Shows up as an extra model in the image toolbar\'s 3D menu. The result must be a GLB file, e.g. from SaveGLB.' },
   { id: 'music', group: 'audio', required: ['prompt'], optional: ['lyrics', 'seconds'], note: 'Text to music. Shows up as an extra model in the audio dialog. @prompt receives the style. Empty lyrics are sent as [instrumental]; lyrics given to a workflow with no @lyrics are an error. Without @seconds the workflow keeps its own length. When several nodes need the same text or length (YuE2 ABC and music nodes, ACE-Step encoder and latent), link them to one String or Float node and mark that node.' },
   { id: 'speech', group: 'audio', required: ['prompt'], optional: [], note: 'Voiceover. Replaces the built-in model when no recording is cloned. @prompt receives the text to read. The workflow picks its own voice, so the voice setting is not passed.' },
   { id: 'clone', group: 'audio', required: ['audio', 'prompt'], optional: [], note: 'Voice clone. @audio receives the selected recording and @prompt the text to read.' },
@@ -32,6 +36,7 @@ export const MARKERS: { id: Marker; fill: string }[] = [
   { id: 'image2', fill: 'Load Image: a second image' },
   { id: 'mask', fill: 'LoadImageMask (channel is set to alpha) or LoadImage (use its MASK output): white = area to change' },
   { id: 'last', fill: 'Load Image: the last frame of a video' },
+  { id: 'video', fill: 'Load Video: the input video' },
   { id: 'audio', fill: 'Load Audio: the input recording' },
   { id: 'prompt', fill: 'a node holding the text as a widget, e.g. CLIPTextEncode (text), TextEncodeQwenImageEdit (prompt), String (Multiline) (value)' },
   { id: 'lyrics', fill: 'a node holding the lyrics as a widget, e.g. YuE2GenerateMusic or MiniMaxMusic3TextEncode (lyrics), String (Multiline) (value)' },
@@ -108,6 +113,7 @@ function numberKey(node: PromptGraph[string], marker: Marker): string | null {
 function fillProblem(graph: PromptGraph, id: string, marker: Marker): string | null {
   const node = graph[id]
   if (IMAGE_MARKERS.includes(marker)) return LOADERS.includes(node.class_type) ? null : t('customWorkflows.needsLoader', `@${marker}`, label(graph, id))
+  if (marker === 'video') return node.class_type === 'LoadVideo' ? null : t('customWorkflows.needsVideoLoader', label(graph, id))
   if (marker === 'audio') return node.class_type === 'LoadAudio' ? null : t('customWorkflows.needsAudioLoader', label(graph, id))
   if (marker === 'prompt') return textKey(node) ? null : t('customWorkflows.noTextWidget', label(graph, id))
   if (marker === 'lyrics') return textKey(node, LYRICS_KEYS) ? null : t('customWorkflows.noTextWidget', label(graph, id))
@@ -145,10 +151,11 @@ export function checkWorkflow(graph: PromptGraph, action: CustomAction): Check {
   const out = outputOf(graph, markers)
   if (!out) errors.push(t('customWorkflows.noOutput'))
   else if (spec.needsImages && !Array.isArray(graph[out].inputs.images)) errors.push(t('customWorkflows.outputNeedsImages', label(graph, out)))
+  else if (spec.needsFrames && !Array.isArray(graph[out].inputs.images) && !Array.isArray(graph[out].inputs.video)) errors.push(t('customWorkflows.outputNeedsFrames', label(graph, out)))
   return { markers, errors, warnings }
 }
 
-export interface CustomValues { image?: string; image2?: string; mask?: string; last?: string; audio?: string; prompt?: string; lyrics?: string; width?: number; height?: number; count?: number; seconds?: number }
+export interface CustomValues { image?: string; image2?: string; mask?: string; last?: string; video?: string; audio?: string; prompt?: string; lyrics?: string; width?: number; height?: number; count?: number; seconds?: number }
 
 export function fillWorkflow(graph: PromptGraph, markers: Markers, values: CustomValues) {
   for (const [marker, id] of Object.entries(markers) as [Marker, string][]) {
@@ -158,7 +165,8 @@ export function fillWorkflow(graph: PromptGraph, markers: Markers, values: Custo
     if (IMAGE_MARKERS.includes(marker)) {
       node.inputs.image = value
       if (node.class_type === 'LoadImageMask') node.inputs.channel = 'alpha'
-    } else if (marker === 'audio') node.inputs.audio = value
+    } else if (marker === 'video') node.inputs.file = value
+    else if (marker === 'audio') node.inputs.audio = value
     else if (marker === 'lyrics') node.inputs[textKey(node, LYRICS_KEYS)!] = value || NO_LYRICS
     else node.inputs[marker === 'prompt' ? textKey(node)! : numberKey(node, marker)!] = value
   }
@@ -180,6 +188,6 @@ export function rulesText(): string {
     'Steps:\n1. The workflow must be API format (Workflow > Export (API) in ComfyUI): an object of node id -> {class_type, inputs, _meta}. A UI-format file (with "nodes" and "links") cannot be used; ask the user to export it as API.\n2. Pick the feature (action) and set _meta.title of the nodes listed for it below. Titles are case-insensitive. Each marker goes on exactly one node; a node that receives several values carries several markers separated by spaces, e.g. "@prompt @size". Other words in the title are ignored, so "Positive @prompt" works. Only change _meta.title and, when a value has no node to receive it, add the smallest node that can (for example a PrimitiveInt for @seconds feeding a frame-count input through a math node). Do not change the user\'s models or settings.\n3. Call custom_workflow with action check, the workflow and the feature; fix every error it reports.\n4. Call custom_workflow with action install, a short name, the workflow and the feature. It saves the file to comfyart/workflows/<feature>/ in the ComfyUI user folder and assigns it to that feature. There is no delete: to remove a workflow, the user deletes its file there.\n5. Tell the user which feature now uses it; assign with file "" switches back to built in.',
     `Markers (the node title is @ plus the name):\n${markers}`,
     `Features:\n${actions}`,
-    'ComfyArt randomizes every seed and noise_seed input on each run and maps model file names to the subfolder they are in, so seeds and model paths need no marker. The workflows ComfyArt ships (custom_nodes/ComfyArt/workflows/*.api.json) carry the same titles and are good examples; other @ names in them (besides @unet) are internal and ignored for custom workflows. Features not listed above (storyboard, video extend, creative upscale, move object, video upscale) always use the built-in workflows.',
+    'ComfyArt randomizes every seed and noise_seed input on each run and maps model file names to the subfolder they are in, so seeds and model paths need no marker. The workflows ComfyArt ships (custom_nodes/ComfyArt/workflows/*.api.json) carry the same titles and are good examples; other @ names in them (besides @unet) are internal and ignored for custom workflows. Features not listed above (storyboard, creative upscale, move object) always use the built-in workflows.',
   ].join('\n\n')
 }

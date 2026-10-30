@@ -208,10 +208,11 @@ SPECS: dict[str, dict] = {
     "image_to_3d": _tool(
         "Turn an image shape (best: one object on a plain background) into a textured 3D model placed next "
         "to it. Takes a few minutes. Returns ids for wait_generation. model: trellis2 (default) or pixal3d, "
-        "which also conditions on the photo's camera field of view (estimated with MoGe). views: 1-4 image "
+        "which also conditions on the photo's camera field of view (estimated with MoGe), or custom, the "
+        "user's own workflow when one is assigned to model3d. views: 1-4 image "
         "shape ids of the same object as front, left, back and right, in that order; when given, Pixal3D "
         "multi-view builds one model from all of them and id and model are ignored.",
-        {"id": _ID, "model": {"type": "string", "enum": ["trellis2", "pixal3d"]}, "views": _IDS}, approval="转 3D"),
+        {"id": _ID, "model": {"type": "string", "enum": ["trellis2", "pixal3d", "custom"]}, "views": _IDS}, approval="转 3D"),
     "place_html": _tool(
         "Place a web page on the canvas: html is one complete self-contained HTML document you wrote "
         "(inline CSS/JS, images by absolute URL). width/height in canvas units.",

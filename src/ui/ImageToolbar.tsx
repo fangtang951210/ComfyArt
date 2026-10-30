@@ -4,6 +4,7 @@ import { atom, useEditor, useValue, type Editor, type TLImageShape } from 'tldra
 import * as actions from '../actions'
 import { extractText } from '../agent'
 import { imageTo3d } from '../assetGen'
+import { CUSTOM_MODEL3D, workflowConfigAtom } from '../customWorkflows'
 import { openCanvasChat } from '../canvasChat'
 import { editElements } from '../elements'
 import { createMockup } from '../mockup'
@@ -149,6 +150,7 @@ export function ImageToolbar({ onError }: { onError: (msg: string) => void }) {
 
   const close = (fn: () => void) => () => { setMenu(null); fn() }
   const genInfo = genInfoOf(shape)
+  const custom3d = workflowConfigAtom.get().model3d
   const ocr = async () => {
     try {
       const text = await extractText(editor, shape)
@@ -205,6 +207,7 @@ export function ImageToolbar({ onError }: { onError: (msg: string) => void }) {
         <div className="ca-menu">
           <Item icon={Icons.cube} label="TRELLIS.2" onClick={close(() => imageTo3d(editor, shape, onError, 'trellis2'))} />
           <Item icon={Icons.cube} label="Pixal3D" onClick={close(() => imageTo3d(editor, shape, onError, 'pixal3d'))} />
+          {custom3d && <Item icon={Icons.cube} label={custom3d.replace(/\.json$/, '')} onClick={close(() => imageTo3d(editor, shape, onError, CUSTOM_MODEL3D))} />}
         </div>
       ),
     },

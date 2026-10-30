@@ -25,6 +25,7 @@ In ComfyUI right-click a node → **Title** and add a marker:
 | `@image2` | Load Image | a second image (style reference) |
 | `@mask` | Load Image (as Mask) or Load Image | the area to change, white = change |
 | `@last` | Load Image | the last frame of a video |
+| `@video` | Load Video | the selected video |
 | `@audio` | Load Audio | the selected recording |
 | `@prompt` | a node with the text as a widget: CLIP Text Encode, TextEncodeQwenImageEdit, String (Multiline)... | the prompt |
 | `@lyrics` | a node with the lyrics as a widget: YuE2 Generate Music, MiniMax Music 3 Text Encode, String (Multiline)... | the lyrics |
@@ -67,6 +68,10 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 | Split layers | `@image` | `@prompt`, `@count` | `@count` is the number of layers. |
 | Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode. Reference, motion control, lip sync and storyboard keep the built-in model. |
 | Animate image | `@image`, `@prompt` | `@size`, `@seconds`, `@last` | With loop on, `@last` gets the source image again. |
+| Extend video | `@video`, `@prompt` | `@seconds` | `@seconds` is the length to add. The result is placed as a new video, so it should hold the original plus the new part. |
+| Upscale video | `@video` | | ComfyArt resizes the result to the size you picked. The result node needs a `video` or `images` input. |
+| Remove video background | `@video` | | |
+| Image to 3D | `@image` | | Appears as an extra model in the image toolbar's 3D menu. The result must be a GLB file, e.g. from Save GLB. |
 | Music | `@prompt` | `@lyrics`, `@seconds` | Appears as an extra model in the audio dialog. `@prompt` gets the style. Empty lyrics are sent as `[instrumental]`. When several nodes need the same text or length, link them to one String or Float node and mark that node. |
 | Voiceover | `@prompt` | | Replaces the built-in model. The workflow picks its own voice, so the voice setting is not passed. |
 | Voice clone | `@audio`, `@prompt` | | `@audio` gets the selected recording, `@prompt` the text to read. |
@@ -74,7 +79,7 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 
 If ComfyArt has an image to pass (a first frame, a last frame, a style reference) and the workflow has no marker for it, the run fails with a message instead of ignoring the image.
 
-Storyboard, video extend, creative upscale, move object and video upscale always use the built-in workflows.
+Storyboard, creative upscale and move object always use the built-in workflows.
 
 ## Example: use another edit model
 
