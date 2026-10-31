@@ -1,5 +1,6 @@
 import { loadNamed, type PromptGraph, type RefKind } from './comfy'
 import { customGraph, resizeVideoTo } from './customWorkflows'
+import { t } from './i18n'
 import { randomSeed, type Built } from './workflows'
 
 export const VIDEO_TARGETS: [string, number][] = [['1080p', 1920], ['2K', 2560], ['4K', 3840]]
@@ -127,6 +128,15 @@ async function r2v(refs: MediaRef[], prompt: string, aspect: number, duration: n
 }
 
 export async function r2vGraph(refs: MediaRef[], prompt: string, aspect: number, duration: number, area: number): Promise<Built> {
+  const files = (kind: RefKind) => refs.filter((r) => r.kind === kind).map((r) => r.file)
+  const [image, image2, ...moreImages] = files('image')
+  const [video, ...moreVideos] = files('video')
+  const [audio, ...moreAudios] = files('audio')
+  const [width, height] = videoSize(aspect, area)
+  const custom = await customGraph('refVideo', { image, image2, video, audio, prompt, width, height, seconds: duration }, () => {
+    if (moreImages.length || moreVideos.length || moreAudios.length) throw new Error(t('customWorkflows.tooManyRefs'))
+  })
+  if (custom) return custom
   const { g, id } = await r2v(refs, prompt, aspect, duration, area)
   return { graph: g, result: id.save }
 }

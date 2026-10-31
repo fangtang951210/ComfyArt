@@ -1,7 +1,7 @@
 import { atom } from 'tldraw'
 
 import { listUserFiles, readUserJson, writeUserJson, writeUserText, type PromptGraph } from './comfy'
-import { asApiWorkflow, checkWorkflow, CUSTOM_ACTIONS, fillWorkflow, outputOf, parseApiWorkflow, rulesText, type CustomAction, type CustomValues, type Markers } from './customMarkers'
+import { asApiWorkflow, checkWorkflow, CUSTOM_ACTIONS, fillWorkflow, outputOf, parseApiWorkflow, rulesText, specOf, type CustomAction, type CustomValues, type Markers } from './customMarkers'
 import { t } from './i18n'
 
 const DIR = 'comfyart/workflows'
@@ -52,6 +52,11 @@ export async function customGraph(action: CustomAction, values: CustomValues, ad
     if (values[key] && !markers[marker]) throw new Error(t('customWorkflows.unusedInput', file, `@${marker}`))
   }
   if (markers.image && !values.image) throw new Error(t('customWorkflows.needsImage', file))
+  const { required, optional } = specOf(action)
+  for (const marker of ['video', 'audio', 'front', 'left', 'back', 'right'] as const) {
+    if (values[marker] && !markers[marker]) throw new Error(t('customWorkflows.unusedInput', file, `@${marker}`))
+    if (markers[marker] && !values[marker] && [...required, ...optional].includes(marker)) throw new Error(t('customWorkflows.needsInput', file, `@${marker}`))
+  }
   if (values.lyrics && !markers.lyrics) throw new Error(t('customWorkflows.unusedLyrics', file))
   fillWorkflow(graph, markers, markers.image2 && !values.image2 ? { ...values, image2: values.image } : values)
   const result = outputOf(graph, markers)!
@@ -87,6 +92,21 @@ export function pasteBack(image: string, mask: string, crop: { x: number; y: num
     graph.cw_mask = { class_type: 'LoadImageMask', inputs: { image: mask, channel: 'alpha' } }
     graph.cw_comp = { class_type: 'ImageCompositeMasked', inputs: { destination: ['cw_full', 0], source: ['cw_scale', 0], x: crop.x, y: crop.y, resize_source: false, mask: ['cw_mask', 0] } }
     graph[result].inputs.images = ['cw_comp', 0]
+  }
+}
+
+export function moveObject(from: { x: number; y: number; w: number; h: number }, to: { x: number; y: number }): Adapt {
+  return (graph, markers, result) => {
+    const filled = graph[result].inputs.images
+    if (!Array.isArray(filled)) throw new Error(t('customWorkflows.outputNeedsImages', result))
+    const mask: Link = [markers.mask!, maskSlot(graph, markers.mask!)]
+    graph.cw_grow = { class_type: 'GrowMask', inputs: { mask, expand: 12, tapered_corners: true } }
+    rewire(graph, mask, ['cw_grow', 0])
+    graph.cw_grow.inputs.mask = mask
+    graph.cw_object = { class_type: 'ImageCrop', inputs: { image: [markers.image!, 0], width: from.w, height: from.h, x: from.x, y: from.y } }
+    graph.cw_cut = { class_type: 'CropMask', inputs: { mask, x: from.x, y: from.y, width: from.w, height: from.h } }
+    graph.cw_paste = { class_type: 'ImageCompositeMasked', inputs: { destination: filled, source: ['cw_object', 0], x: Math.max(0, to.x), y: Math.max(0, to.y), resize_source: false, mask: ['cw_cut', 0] } }
+    graph[result].inputs.images = ['cw_paste', 0]
   }
 }
 

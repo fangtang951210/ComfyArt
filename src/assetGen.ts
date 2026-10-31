@@ -120,6 +120,9 @@ const VIEWS = ['front', 'left', 'back', 'right'] as const
 export const MAX_VIEWS = VIEWS.length
 
 async function multiViewGraph(images: string[]): Promise<Built> {
+  const [front, left, back, right] = images
+  const custom = await customGraph('views', { front, left, back, right })
+  if (custom) return custom
   const { graph: g, id } = await loadNamed('image-to-3d-pixal3d-multiview.api.json', ...VIEWS, 'views', 'save')
   VIEWS.forEach((view, i) => {
     if (images[i]) {

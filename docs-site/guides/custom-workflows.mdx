@@ -24,6 +24,7 @@ In ComfyUI right-click a node → **Title** and add a marker:
 | `@image` | Load Image | the selected image |
 | `@image2` | Load Image | a second image (style reference) |
 | `@base` | Load Image | the base image of an image-to-image run |
+| `@front`, `@left`, `@back`, `@right` | Load Image | the views of one object |
 | `@mask` | Load Image (as Mask) or Load Image | the area to change, white = change |
 | `@last` | Load Image | the last frame of a video |
 | `@video` | Load Video | the selected video |
@@ -65,10 +66,12 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 | Expand | `@image`, `@mask`, `@prompt` | | ComfyArt pads the image first; your workflow gets the padded image and the mask of the new area. |
 | Upscale | `@image` | | ComfyArt resizes the result to the chosen factor. The result node needs an `images` input. |
 | Remove background | `@image` | | |
-| Eraser | `@image`, `@mask` | | Also fills the background behind edited elements and split layers. |
+| Eraser | `@image`, `@mask` | | Also fills the background behind edited elements, split layers and moved objects. For move object the result node needs an `images` input. |
+| Creative upscale | `@image`, `@prompt` | `@strength` | `@image` gets the source at its own size. ComfyArt resizes the result to the factor you picked. The result node needs an `images` input. |
 | Multi-angle | `@image`, `@prompt` | | The prompt is a camera description such as `<qma> front-right quarter view eye-level shot medium shot`. |
 | Split layers | `@image` | `@prompt`, `@count` | `@count` is the number of layers. |
-| Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode. Reference and storyboard keep the built-in model. |
+| Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode. Storyboard keeps the built-in model. |
+| Reference to video | `@prompt` | `@image`, `@image2`, `@video`, `@audio`, `@size`, `@seconds` | Takes up to two images, one video and one audio. A marked input with no reference, or a reference with no marker, is an error. `@image2` gets the first image when only one is given. |
 | Motion control | `@image`, `@video`, `@prompt` | `@size`, `@seconds` | `@image` gets the character, `@video` the motion video. |
 | Lip sync | `@image`, `@audio`, `@prompt` | `@size`, `@seconds` | `@image` gets the portrait, `@audio` the speech, `@seconds` the length of the audio. |
 | Animate image | `@image`, `@prompt` | `@size`, `@seconds`, `@last` | With loop on, `@last` gets the source image again. |
@@ -76,6 +79,7 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 | Upscale video | `@video` | | ComfyArt resizes the result to the size you picked. The result node needs a `video` or `images` input. |
 | Remove video background | `@video` | | |
 | Image to 3D | `@image` | | Appears as an extra model in the image toolbar's 3D menu. The result must be a GLB file, e.g. from Save GLB. |
+| Multi-view to 3D | `@front` | `@left`, `@back`, `@right` | Replaces the built-in model. The selected images go to the markers in that order, and their number must match. The result must be a GLB file. |
 | Music | `@prompt` | `@lyrics`, `@seconds` | Appears as an extra model in the audio dialog. `@prompt` gets the style. Empty lyrics are sent as `[instrumental]`. When several nodes need the same text or length, link them to one String or Float node and mark that node. |
 | Voiceover | `@prompt` | | Replaces the built-in model. The workflow picks its own voice, so the voice setting is not passed. |
 | Voice clone | `@audio`, `@prompt` | | `@audio` gets the selected recording, `@prompt` the text to read. |
@@ -83,7 +87,7 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 
 If ComfyArt has an image to pass (a first frame, a last frame, a style reference) and the workflow has no marker for it, the run fails with a message instead of ignoring the image.
 
-Storyboard, creative upscale and move object always use the built-in workflows.
+Storyboard always uses the built-in workflows.
 
 ## Example: use another edit model
 

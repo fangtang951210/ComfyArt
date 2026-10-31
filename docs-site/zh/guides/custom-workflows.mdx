@@ -24,6 +24,7 @@ ComfyArt 靠**节点标题**找到要填的节点：给接收图片、提示词�
 | `@image` | Load Image | 选中的图片 |
 | `@image2` | Load Image | 第二张图（风格迁移的参考图） |
 | `@base` | Load Image | 图生图的底图 |
+| `@front`、`@left`、`@back`、`@right` | Load Image | 同一物体的各个视角 |
 | `@mask` | Load Image (as Mask) 或 Load Image | 要修改的区域，白色 = 修改 |
 | `@last` | Load Image | 视频的尾帧 |
 | `@video` | Load Video | 选中的视频 |
@@ -65,10 +66,12 @@ ComfyArt 自带的工作流（`custom_nodes/ComfyArt/workflows/`）也是这样�
 | 扩展 | `@image`、`@mask`、`@prompt` | | ComfyArt 先扩好边，你的工作流收到的是扩边后的图和新区域的遮罩。 |
 | 放大 | `@image` | | ComfyArt 会把结果缩放到选定的倍数。结果节点需要有 `images` 输入。 |
 | 去背景 | `@image` | | |
-| 橡皮 | `@image`、`@mask` | | 编辑元素和图层拆分时补背景也用它。 |
+| 橡皮 | `@image`、`@mask` | | 编辑元素、图层拆分和移动对象时补背景也用它。用于移动对象时，结果节点需要有 `images` 输入。 |
+| 增强细节放大 | `@image`、`@prompt` | `@strength` | `@image` 接收原尺寸的图。ComfyArt 会把结果缩放到你选的倍数。结果节点需要有 `images` 输入。 |
 | 多角度 | `@image`、`@prompt` | | 提示词是视角描述，比如 `<qma> front-right quarter view eye-level shot medium shot`。 |
 | 图层拆分 | `@image` | `@prompt`、`@count` | `@count` 是层数。 |
-| 视频生成 | `@prompt`、`@size` | `@image`、`@last`、`@seconds` | 用于首尾帧模式。参考生视频和分镜仍用内置模型。 |
+| 视频生成 | `@prompt`、`@size` | `@image`、`@last`、`@seconds` | 用于首尾帧模式。分镜仍用内置模型。 |
+| 参考生视频 | `@prompt` | `@image`、`@image2`、`@video`、`@audio`、`@size`、`@seconds` | 最多两张图、一段视频、一段音频。有标记没素材，或有素材没标记，都会报错。只有一张图时，`@image2` 也收到这一张。 |
 | 动作控制 | `@image`、`@video`、`@prompt` | `@size`、`@seconds` | `@image` 接收角色，`@video` 接收动作视频。 |
 | 对口型 | `@image`、`@audio`、`@prompt` | `@size`、`@seconds` | `@image` 接收人像，`@audio` 接收语音，`@seconds` 接收音频时长。 |
 | 动态图片 | `@image`、`@prompt` | `@size`、`@seconds`、`@last` | 开启循环时，`@last` 会再收到一次原图。 |
@@ -76,6 +79,7 @@ ComfyArt 自带的工作流（`custom_nodes/ComfyArt/workflows/`）也是这样�
 | 视频放大 | `@video` | | ComfyArt 会把结果缩放到你选的尺寸。结果节点需要有 `video` 或 `images` 输入。 |
 | 视频去背景 | `@video` | | |
 | 图生 3D | `@image` | | 作为一个新模型出现在图片工具栏的 3D 菜单里。结果必须是 GLB 文件，比如用 Save GLB 保存。 |
+| 多视角生 3D | `@front` | `@left`、`@back`、`@right` | 替换内置模型。选中的图片按这个顺序传入，数量要和标记一致。结果必须是 GLB 文件。 |
 | 配乐 | `@prompt` | `@lyrics`、`@seconds` | 作为一个新模型出现在音频生成对话框里。`@prompt` 接收风格。歌词留空时传 `[instrumental]`。多个节点要用同一段文本或时长时，把它们连到同一个 String 或 Float 节点，再标记那个节点。 |
 | 配音 | `@prompt` | | 替换内置模型。声音由工作流自己决定，不会传入声音设置。 |
 | 声音克隆 | `@audio`、`@prompt` | | `@audio` 接收选中的录音，`@prompt` 接收要读的文本。 |
@@ -83,7 +87,7 @@ ComfyArt 自带的工作流（`custom_nodes/ComfyArt/workflows/`）也是这样�
 
 ComfyArt 有图片要传（首帧、尾帧、风格参考图）而工作流没有对应标记时，会报错说明，而不是悄悄不用这张图。
 
-分镜、增强细节放大和移动对象始终用内置工作流。
+分镜始终用内置工作流。
 
 ## 示例：换一个编辑模型
 
