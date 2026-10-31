@@ -132,6 +132,9 @@ export async function r2vGraph(refs: MediaRef[], prompt: string, aspect: number,
 }
 
 export async function motionGraph(image: string, video: string, prompt: string, aspect: number, duration: number, area: number): Promise<Built> {
+  const [width, height] = videoSize(aspect, area)
+  const custom = await customGraph('motion', { image, video, prompt: prompt || 'The character performs the motion of the video.', width, height, seconds: duration })
+  if (custom) return custom
   const { g, id } = await r2v([{ file: image, kind: 'image' }], `${prompt ? `${prompt}\n` : ''}The character from <Picture 1> performs exactly the body motion of the control pose video.`, aspect, duration, area)
   Object.assign(g, {
     m1: { class_type: 'LoadVideo', inputs: { file: video } },
@@ -152,7 +155,11 @@ export async function motionGraph(image: string, video: string, prompt: string, 
 }
 
 export async function lipSyncGraph(image: string, audio: string, prompt: string, aspect: number, seconds: number, area: number): Promise<Built> {
-  const { g, id } = await i2vGraph(`${prompt || 'The person talks naturally to the camera.'} The lips move in sync with the speech.`, aspect, seconds, area)
+  const text = prompt || 'The person talks naturally to the camera.'
+  const [width, height] = videoSize(aspect, area)
+  const custom = await customGraph('lipsync', { image, audio, prompt: text, width, height, seconds })
+  if (custom) return custom
+  const { g, id } = await i2vGraph(`${text} The lips move in sync with the speech.`, aspect, seconds, area)
   g[id.image].inputs.image = image
   g.s1 = { class_type: 'LoadAudio', inputs: { audio } }
   g.s2 = { class_type: 'MiniMaxH3AddGuide', inputs: { positive: [id.prompt, 0], latent: [id.prompt, 1], vae: [id.vae, 0], audio_vae: [id.audioVae, 0], audio: ['s1', 0], frame_idx: 0 } }

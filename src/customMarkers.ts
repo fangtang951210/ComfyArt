@@ -1,15 +1,15 @@
 import { titleTags, type PromptGraph } from './comfy'
 import { t } from './i18n'
 
-export type CustomAction = 'generate' | 'edit' | 'style' | 'inpaint' | 'expand' | 'upscale' | 'cutout' | 'erase' | 'angles' | 'layers' | 'video' | 'animate' | 'extend' | 'videoUpscale' | 'videoCutout' | 'model3d' | 'music' | 'speech' | 'clone' | 'sfx'
-export type Marker = 'image' | 'image2' | 'mask' | 'last' | 'video' | 'audio' | 'prompt' | 'lyrics' | 'size' | 'width' | 'height' | 'count' | 'seconds' | 'unet' | 'save'
+export type CustomAction = 'generate' | 'edit' | 'style' | 'inpaint' | 'expand' | 'upscale' | 'cutout' | 'erase' | 'angles' | 'layers' | 'video' | 'animate' | 'motion' | 'lipsync' | 'extend' | 'videoUpscale' | 'videoCutout' | 'model3d' | 'music' | 'speech' | 'clone' | 'sfx'
+export type Marker = 'image' | 'image2' | 'base' | 'mask' | 'last' | 'video' | 'audio' | 'prompt' | 'lyrics' | 'size' | 'width' | 'height' | 'count' | 'seconds' | 'strength' | 'unet' | 'save'
 
 export type CustomGroup = 'image' | 'edit' | 'tools' | 'video' | 'model' | 'audio'
 
 interface ActionSpec { id: CustomAction; group: CustomGroup; required: Marker[]; optional: Marker[]; needsImages?: boolean; needsFrames?: boolean; note: string }
 
 export const CUSTOM_ACTIONS: ActionSpec[] = [
-  { id: 'generate', group: 'image', required: ['prompt', 'size'], optional: ['count', 'unet'], note: 'Text to image. Shows up as an extra model in the image generator. Reference and base images are not passed. Transparent output is added by ComfyArt after @save, so @save needs an images input. LoRAs picked under Advanced need @unet.' },
+  { id: 'generate', group: 'image', required: ['prompt', 'size'], optional: ['count', 'unet', 'image', 'image2', 'base', 'strength'], note: 'Text to image. Shows up as an extra model in the image generator. @image and @image2 receive the first two reference images; a workflow with @image needs a reference to run, and @image2 gets the first one when only one is given. @base receives the base image and @strength its strength from 0.1 to 1 (for example a denoise input). A base image given to a workflow with no @base is an error. Transparent output is added by ComfyArt after @save, so @save needs an images input. LoRAs picked under Advanced need @unet.' },
   { id: 'edit', group: 'edit', required: ['image', 'prompt'], optional: [], note: 'Instruction edit: quick edit, edit text, compose and mockup blending. @prompt receives the edit instruction.' },
   { id: 'style', group: 'edit', required: ['image', 'prompt'], optional: ['image2'], note: 'Style transfer. @image2 is the style reference; without one ComfyArt passes the source image again. A reference given to a workflow with no @image2 is an error.' },
   { id: 'inpaint', group: 'edit', required: ['image', 'prompt'], optional: [], needsImages: true, note: 'Edit a region. @image receives the cropped region; ComfyArt pastes the result back into the full image, so @save needs an images input.' },
@@ -19,8 +19,10 @@ export const CUSTOM_ACTIONS: ActionSpec[] = [
   { id: 'cutout', group: 'tools', required: ['image'], optional: [], note: 'Background removal. The result should keep an alpha channel.' },
   { id: 'erase', group: 'tools', required: ['image', 'mask'], optional: [], note: 'Object removal, also used to fill the background behind edited elements and split layers. @mask is the area to remove (white = remove).' },
   { id: 'layers', group: 'tools', required: ['image'], optional: ['prompt', 'count'], note: '@count receives the number of layers. The result is several RGBA images.' },
-  { id: 'video', group: 'video', required: ['prompt', 'size'], optional: ['image', 'last', 'seconds'], note: 'Replaces the built-in model in the video generator\'s first/last frame mode (reference, motion, lip sync and storyboard modes stay built in). A first or last frame given to a workflow without @image / @last is an error.' },
+  { id: 'video', group: 'video', required: ['prompt', 'size'], optional: ['image', 'last', 'seconds'], note: 'Replaces the built-in model in the video generator\'s first/last frame mode (reference and storyboard modes stay built in). A first or last frame given to a workflow without @image / @last is an error.' },
   { id: 'animate', group: 'video', required: ['image', 'prompt'], optional: ['size', 'seconds', 'last'], note: 'Animate an image into a short clip. With loop on, @last receives the source image again so the clip ends where it starts.' },
+  { id: 'motion', group: 'video', required: ['image', 'video', 'prompt'], optional: ['size', 'seconds'], note: 'Motion control. @image receives the character and @video the motion video.' },
+  { id: 'lipsync', group: 'video', required: ['image', 'audio', 'prompt'], optional: ['size', 'seconds'], note: 'Lip sync. @image receives the portrait and @audio the speech. @seconds receives the length of the audio.' },
   { id: 'extend', group: 'video', required: ['video', 'prompt'], optional: ['seconds'], note: 'Extend a video. @video receives the source and @seconds the length to add. The result is placed as a new video, so it should hold the original plus the new part.' },
   { id: 'videoUpscale', group: 'video', required: ['video'], optional: [], needsFrames: true, note: 'ComfyArt resizes the result to the size the user picked, so @save needs a video or images input.' },
   { id: 'videoCutout', group: 'video', required: ['video'], optional: [], note: 'Video background removal.' },
@@ -34,6 +36,7 @@ export const CUSTOM_ACTIONS: ActionSpec[] = [
 export const MARKERS: { id: Marker; fill: string }[] = [
   { id: 'image', fill: 'Load Image (LoadImage or LoadImageMask): the input image' },
   { id: 'image2', fill: 'Load Image: a second image' },
+  { id: 'base', fill: 'Load Image: the base image of an image-to-image run' },
   { id: 'mask', fill: 'LoadImageMask (channel is set to alpha) or LoadImage (use its MASK output): white = area to change' },
   { id: 'last', fill: 'Load Image: the last frame of a video' },
   { id: 'video', fill: 'Load Video: the input video' },
@@ -45,16 +48,17 @@ export const MARKERS: { id: Marker; fill: string }[] = [
   { id: 'height', fill: 'an Int node or any node with a height widget' },
   { id: 'count', fill: 'an Int node or a node with batch_size / amount: how many results' },
   { id: 'seconds', fill: 'an Int or Float node or a node with seconds / duration / max_duration: video or audio length in seconds (not frames)' },
+  { id: 'strength', fill: 'a Float node or a node with denoise / strength: how much the base image changes, from 0.1 to 1' },
   { id: 'unet', fill: 'the node whose first output is the MODEL, e.g. Load Diffusion Model or Load Checkpoint: LoRAs picked under Advanced are chained after it' },
   { id: 'save', fill: 'the output node (Save Image, Save Video, Preview Image...). Needed only when the workflow has more than one end node' },
 ]
 
 const LOADERS = ['LoadImage', 'LoadImageMask']
-const IMAGE_MARKERS: Marker[] = ['image', 'image2', 'mask', 'last']
+const IMAGE_MARKERS: Marker[] = ['image', 'image2', 'base', 'mask', 'last']
 const TEXT_KEYS = ['text', 'prompt', 'value', 'string', 'tags', 'caption', 'style', 'target_text']
 const LYRICS_KEYS = ['lyrics', 'value', 'text', 'string']
 const NUMBER_KEYS: Partial<Record<Marker, string[]>> = {
-  width: ['value', 'width'], height: ['value', 'height'], count: ['value', 'batch_size', 'amount'], seconds: ['value', 'seconds', 'duration', 'max_duration'],
+  width: ['value', 'width'], height: ['value', 'height'], count: ['value', 'batch_size', 'amount'], seconds: ['value', 'seconds', 'duration', 'max_duration'], strength: ['value', 'denoise', 'strength'],
 }
 export const NO_LYRICS = '[instrumental]'
 
@@ -155,7 +159,7 @@ export function checkWorkflow(graph: PromptGraph, action: CustomAction): Check {
   return { markers, errors, warnings }
 }
 
-export interface CustomValues { image?: string; image2?: string; mask?: string; last?: string; video?: string; audio?: string; prompt?: string; lyrics?: string; width?: number; height?: number; count?: number; seconds?: number }
+export interface CustomValues { image?: string; image2?: string; base?: string; strength?: number; mask?: string; last?: string; video?: string; audio?: string; prompt?: string; lyrics?: string; width?: number; height?: number; count?: number; seconds?: number }
 
 export function fillWorkflow(graph: PromptGraph, markers: Markers, values: CustomValues) {
   for (const [marker, id] of Object.entries(markers) as [Marker, string][]) {

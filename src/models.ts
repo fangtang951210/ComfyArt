@@ -11,7 +11,7 @@ export interface ModelDef {
   desc: string
   files: string[]
   video?: boolean
-  refs?: 'qwen' | 'latent'
+  refs?: 'qwen' | 'latent' | 'custom'
   prompt?: string
   steps?: [string, Record<string, number>]
   sizes?: string[]
@@ -60,7 +60,7 @@ export const VIDEO_MODELS: ModelDef[] = [
 export const isVideo = (workflow: string) => VIDEO_MODELS.some((m) => m.id === workflow)
 function customModels(): ModelDef[] {
   const file = workflowConfigAtom.get().generate
-  return file ? [{ id: CUSTOM_GENERATE, label: file.replace(/\.json$/, ''), desc: t('customWorkflows.customModelDesc'), files: [], lora: null }] : []
+  return file ? [{ id: CUSTOM_GENERATE, label: file.replace(/\.json$/, ''), desc: t('customWorkflows.customModelDesc'), files: [], lora: null, refs: 'custom' }] : []
 }
 
 export const modelOf = (workflow: string) => [...IMAGE_MODELS, ...VIDEO_MODELS, ...customModels()].find((m) => m.id === workflow)

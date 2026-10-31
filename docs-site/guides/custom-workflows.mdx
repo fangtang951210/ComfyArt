@@ -23,6 +23,7 @@ In ComfyUI right-click a node → **Title** and add a marker:
 |---|---|---|
 | `@image` | Load Image | the selected image |
 | `@image2` | Load Image | a second image (style reference) |
+| `@base` | Load Image | the base image of an image-to-image run |
 | `@mask` | Load Image (as Mask) or Load Image | the area to change, white = change |
 | `@last` | Load Image | the last frame of a video |
 | `@video` | Load Video | the selected video |
@@ -33,6 +34,7 @@ In ComfyUI right-click a node → **Title** and add a marker:
 | `@width`, `@height` | Int | width and height, when they are separate |
 | `@count` | Int, or a node with `batch_size` / `amount` | how many results |
 | `@seconds` | Int / Float, or a node with `seconds` / `duration` / `max_duration` | video or audio length in **seconds** |
+| `@strength` | Float, or a node with `denoise` / `strength` | how much the base image changes, from 0.1 to 1 |
 | `@unet` | Load Diffusion Model, Load Checkpoint... (first output is the MODEL) | the LoRAs picked under **Advanced**, chained after it |
 | `@save` | Save Image, Save Video, Preview Image... | the result. Needed only when the workflow has several end nodes |
 
@@ -56,7 +58,7 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 
 | Feature | Required | Optional | Notes |
 |---|---|---|---|
-| Text to image | `@prompt`, `@size` (or `@width` + `@height`) | `@count`, `@unet` | Appears as an extra model in the generator. Reference and base images are not passed. LoRAs need `@unet`. |
+| Text to image | `@prompt`, `@size` (or `@width` + `@height`) | `@count`, `@unet`, `@image`, `@image2`, `@base`, `@strength` | Appears as an extra model in the generator. `@image` and `@image2` get the first two reference images; a workflow with `@image` needs a reference to run. `@base` gets the base image and `@strength` its strength from 0.1 to 1. LoRAs need `@unet`. |
 | Quick edit / edit text | `@image`, `@prompt` | | Also used by compose and mockup blending. |
 | Style transfer | `@image`, `@prompt` | `@image2` | Without a reference, `@image2` gets the same image. |
 | Inpaint / edit region | `@image`, `@prompt` | | ComfyArt crops the region for your workflow and pastes the result back. The result node needs an `images` input. |
@@ -66,7 +68,9 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 | Eraser | `@image`, `@mask` | | Also fills the background behind edited elements and split layers. |
 | Multi-angle | `@image`, `@prompt` | | The prompt is a camera description such as `<qma> front-right quarter view eye-level shot medium shot`. |
 | Split layers | `@image` | `@prompt`, `@count` | `@count` is the number of layers. |
-| Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode. Reference, motion control, lip sync and storyboard keep the built-in model. |
+| Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode. Reference and storyboard keep the built-in model. |
+| Motion control | `@image`, `@video`, `@prompt` | `@size`, `@seconds` | `@image` gets the character, `@video` the motion video. |
+| Lip sync | `@image`, `@audio`, `@prompt` | `@size`, `@seconds` | `@image` gets the portrait, `@audio` the speech, `@seconds` the length of the audio. |
 | Animate image | `@image`, `@prompt` | `@size`, `@seconds`, `@last` | With loop on, `@last` gets the source image again. |
 | Extend video | `@video`, `@prompt` | `@seconds` | `@seconds` is the length to add. The result is placed as a new video, so it should hold the original plus the new part. |
 | Upscale video | `@video` | | ComfyArt resizes the result to the size you picked. The result node needs a `video` or `images` input. |

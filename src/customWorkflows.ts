@@ -48,7 +48,7 @@ export async function customGraph(action: CustomAction, values: CustomValues, ad
   if (!graph) return null
   const { markers, errors } = checkWorkflow(graph, action)
   if (errors.length) throw new Error(`${file}: ${errors.join(' ')}`)
-  for (const [key, marker] of [['image2', 'image2'], ['last', 'last'], ['image', 'image']] as const) {
+  for (const [key, marker] of [['image2', 'image2'], ['last', 'last'], ['image', 'image'], ['base', 'base']] as const) {
     if (values[key] && !markers[marker]) throw new Error(t('customWorkflows.unusedInput', file, `@${marker}`))
   }
   if (markers.image && !values.image) throw new Error(t('customWorkflows.needsImage', file))
