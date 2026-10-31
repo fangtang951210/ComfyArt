@@ -394,6 +394,7 @@
   "customWorkflows.notApiFormat": "这不是 API 格式的工作流。请在 ComfyUI 里用 工作流 → 导出（API）。",
   "customWorkflows.notJson": "这个文件不是有效的 JSON。",
   "customWorkflows.outputNeedsImages": "结果节点 {0} 需要有 images 输入。",
+  "customWorkflows.storyboardNeedsVideo": "{0} 不能用于分镜：结果节点需要有 video 输入，比如 Save Video。",
   "customWorkflows.title": "自定义工作流",
   "customWorkflows.unknownMarker": "{0}（节点 {1}）不是 ComfyArt 的标记，会被忽略。",
   "customWorkflows.needsUnet": "{0} 没有 @unet 节点来挂 LoRA；请把加载模型的节点标题设为 @unet，或去掉 LoRA。",

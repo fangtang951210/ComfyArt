@@ -70,7 +70,7 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 | Creative upscale | `@image`, `@prompt` | `@strength` | `@image` gets the source at its own size. ComfyArt resizes the result to the factor you picked. The result node needs an `images` input. |
 | Multi-angle | `@image`, `@prompt` | | The prompt is a camera description such as `<qma> front-right quarter view eye-level shot medium shot`. |
 | Split layers | `@image` | `@prompt`, `@count` | `@count` is the number of layers. |
-| Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode. Storyboard keeps the built-in model. |
+| Video generation | `@prompt`, `@size` | `@image`, `@last`, `@seconds` | Used by the first/last frame mode and the storyboard. In a storyboard each scene runs the workflow once and the clips are joined, so the result node needs a `video` input. With `@image`, each scene starts from the last frame of the one before and the first scene needs a first frame; without it the scenes are independent. |
 | Reference to video | `@prompt` | `@image`, `@image2`, `@video`, `@audio`, `@size`, `@seconds` | Takes up to two images, one video and one audio. A marked input with no reference, or a reference with no marker, is an error. `@image2` gets the first image when only one is given. |
 | Motion control | `@image`, `@video`, `@prompt` | `@size`, `@seconds` | `@image` gets the character, `@video` the motion video. |
 | Lip sync | `@image`, `@audio`, `@prompt` | `@size`, `@seconds` | `@image` gets the portrait, `@audio` the speech, `@seconds` the length of the audio. |
@@ -86,8 +86,6 @@ Open the project menu (top-left icon) → **Custom workflows**. Features are gro
 | Sound effect | `@prompt` | `@seconds` | Replaces the built-in model. |
 
 If ComfyArt has an image to pass (a first frame, a last frame, a style reference) and the workflow has no marker for it, the run fails with a message instead of ignoring the image.
-
-Storyboard always uses the built-in workflows.
 
 ## Example: use another edit model
 

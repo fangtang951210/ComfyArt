@@ -1,5 +1,5 @@
 import { loadNamed, type PromptGraph, type RefKind } from './comfy'
-import { customGraph, resizeVideoTo } from './customWorkflows'
+import { customGraph, customStoryboard, resizeVideoTo } from './customWorkflows'
 import { t } from './i18n'
 import { randomSeed, type Built } from './workflows'
 
@@ -225,8 +225,10 @@ export interface Scene { prompt: string; duration: number }
 const SCENE_NODES = ['prompt', 'frames', 'seconds', 'seed', 'guider', 'sampler', 'decode', 'audioDecode'] as const
 
 export async function storyboardGraph(scenes: Scene[], aspect: number, firstFrame: string | null, area: number): Promise<Built> {
-  const { graph: t, id } = await loadNamed('i2v-minimax-h3.api.json', ...SCENE_NODES, 'image', 'video', 'save')
   const [w, h] = videoSize(aspect, area)
+  const custom = await customStoryboard(scenes, w, h, firstFrame)
+  if (custom) return custom
+  const { graph: t, id } = await loadNamed('i2v-minimax-h3.api.json', ...SCENE_NODES, 'image', 'video', 'save')
   const nodes = SCENE_NODES.map((name) => id[name])
   const g: PromptGraph = {}
   for (const [n, node] of Object.entries(t)) if (!nodes.includes(n) && n !== id.image) g[n] = node

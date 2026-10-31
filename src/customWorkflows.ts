@@ -64,6 +64,53 @@ export async function customGraph(action: CustomAction, values: CustomValues, ad
   return { graph, result }
 }
 
+export async function customStoryboard(scenes: { prompt: string; duration: number }[], width: number, height: number, firstFrame: string | null) {
+  const file = workflowConfigAtom.get().video
+  if (!file) return null
+  const source = await readCustomWorkflow('video', file)
+  if (!source) return null
+  const { markers, errors } = checkWorkflow(source, 'video')
+  if (errors.length) throw new Error(`${file}: ${errors.join(' ')}`)
+  const result = outputOf(source, markers)!
+  const output = source[result].inputs.video
+  if (!Array.isArray(output)) throw new Error(t('customWorkflows.storyboardNeedsVideo', file))
+  if (firstFrame && !markers.image) throw new Error(t('customWorkflows.unusedInput', file, '@image'))
+  if (markers.image && !firstFrame) throw new Error(t('customWorkflows.needsImage', file))
+  const local = (i: number, id: string) => `s${i}:${id}`
+  const graph: PromptGraph = {}
+  const concat: Record<string, unknown> = { codec: 'auto' }
+  scenes.forEach((scene, i) => {
+    const copy = JSON.parse(JSON.stringify(source)) as PromptGraph
+    fillWorkflow(copy, markers, { prompt: scene.prompt, width, height, seconds: scene.duration, image: i === 0 ? firstFrame ?? undefined : undefined })
+    const clip: Link = [local(i, String(output[0])), Number(output[1])]
+    for (const [id, node] of Object.entries(copy)) {
+      if (id === result || (i > 0 && id === markers.image)) continue
+      const inputs = Object.fromEntries(Object.entries(node.inputs).map(([k, v]) => {
+        if (!Array.isArray(v)) return [k, v]
+        return [k, i > 0 && v[0] === markers.image && v[1] === 0 ? [`last${i}`, 0] : [local(i, String(v[0])), v[1]]]
+      }))
+      graph[local(i, id)] = { ...node, inputs }
+    }
+    graph[`keep${i}`] = { class_type: 'SaveVideo', inputs: { video: clip, filename_prefix: 'comfyart/storyboard/scene', format: 'auto', codec: 'auto' } }
+    if (!markers.image) {
+      concat[`videos.video${i}`] = clip
+      return
+    }
+    graph[`frames${i}`] = { class_type: 'GetVideoComponents', inputs: { video: clip } }
+    if (i === 0) {
+      concat[`videos.video${i}`] = clip
+      return
+    }
+    graph[`last${i}`] = { class_type: 'ImageFromBatch', inputs: { image: [`frames${i - 1}`, 0], batch_index: -1, length: 1 } }
+    graph[`frame${i}`] = { class_type: 'ComfyMathExpression', inputs: { expression: '1 / a', 'values.a': [`frames${i}`, 2] } }
+    graph[`cut${i}`] = { class_type: 'Video Slice', inputs: { video: clip, start_time: [`frame${i}`, 0], duration: 0, strict_duration: false } }
+    concat[`videos.video${i}`] = [`cut${i}`, 0]
+  })
+  graph.concat = { class_type: 'ConcatenateVideo', inputs: concat }
+  graph[result] = { ...source[result], inputs: { ...source[result].inputs, video: ['concat', 0] } }
+  return { graph, result, partial: scenes.map((_, i) => `keep${i}`) }
+}
+
 function rewire(graph: PromptGraph, from: Link, to: Link) {
   for (const node of Object.values(graph)) {
     for (const [k, v] of Object.entries(node.inputs)) {

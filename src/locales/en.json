@@ -394,6 +394,7 @@
   "customWorkflows.notApiFormat": "This is not an API-format workflow. In ComfyUI use Workflow → Export (API).",
   "customWorkflows.notJson": "This file is not valid JSON.",
   "customWorkflows.outputNeedsImages": "Result node {0} needs an images input.",
+  "customWorkflows.storyboardNeedsVideo": "{0} cannot be used in a storyboard: its result node needs a video input, as in Save Video.",
   "customWorkflows.title": "Custom workflows",
   "customWorkflows.unknownMarker": "{0} (node {1}) is not a ComfyArt marker and is ignored.",
   "customWorkflows.needsUnet": "{0} has no @unet node to attach the LoRAs to; title the node that loads the model @unet, or remove the LoRAs.",

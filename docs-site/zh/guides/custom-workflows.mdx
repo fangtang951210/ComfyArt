@@ -70,7 +70,7 @@ ComfyArt 自带的工作流（`custom_nodes/ComfyArt/workflows/`）也是这样�
 | 增强细节放大 | `@image`、`@prompt` | `@strength` | `@image` 接收原尺寸的图。ComfyArt 会把结果缩放到你选的倍数。结果节点需要有 `images` 输入。 |
 | 多角度 | `@image`、`@prompt` | | 提示词是视角描述，比如 `<qma> front-right quarter view eye-level shot medium shot`。 |
 | 图层拆分 | `@image` | `@prompt`、`@count` | `@count` 是层数。 |
-| 视频生成 | `@prompt`、`@size` | `@image`、`@last`、`@seconds` | 用于首尾帧模式。分镜仍用内置模型。 |
+| 视频生成 | `@prompt`、`@size` | `@image`、`@last`、`@seconds` | 用于首尾帧模式和分镜。分镜时每个镜头运行一次工作流，再把片段拼接起来，所以结果节点需要有 `video` 输入。带 `@image` 时，每个镜头从上一个镜头的最后一帧开始，第一个镜头需要首帧；不带时各镜头相互独立。 |
 | 参考生视频 | `@prompt` | `@image`、`@image2`、`@video`、`@audio`、`@size`、`@seconds` | 最多两张图、一段视频、一段音频。有标记没素材，或有素材没标记，都会报错。只有一张图时，`@image2` 也收到这一张。 |
 | 动作控制 | `@image`、`@video`、`@prompt` | `@size`、`@seconds` | `@image` 接收角色，`@video` 接收动作视频。 |
 | 对口型 | `@image`、`@audio`、`@prompt` | `@size`、`@seconds` | `@image` 接收人像，`@audio` 接收语音，`@seconds` 接收音频时长。 |
@@ -86,8 +86,6 @@ ComfyArt 自带的工作流（`custom_nodes/ComfyArt/workflows/`）也是这样�
 | 音效 | `@prompt` | `@seconds` | 替换内置模型。 |
 
 ComfyArt 有图片要传（首帧、尾帧、风格参考图）而工作流没有对应标记时，会报错说明，而不是悄悄不用这张图。
-
-分镜始终用内置工作流。
 
 ## 示例：换一个编辑模型
 
