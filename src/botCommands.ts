@@ -1,14 +1,14 @@
 import { react, type Editor, type TLImageShape, type TLShapeId, type TLVideoShape } from 'tldraw'
 
 import * as actions from './actions'
-import { generateAudio, imageTo3d, MUSIC_MODELS, viewsTo3d, voices } from './assetGen'
+import { generateAudio, imageTo3d, musicModels, viewsTo3d, voices } from './assetGen'
 import { editElements } from './elements'
 import { bakeToImage, createMockup } from './mockup'
 import { api } from './comfy'
 import { LAYOUT_HANDLERS, shapeOf, type Args, type Handler } from './botLayout'
 import { placeInChatFrame } from './chatFrame'
 import { capRefs, createGenerator, generate, SHORT_SIDE } from './generate'
-import { customWorkflowCommand } from './customWorkflows'
+import { CUSTOM_MODEL3D, customWorkflowCommand } from './customWorkflows'
 import { DURATIONS, RATIOS, VIDEO_RATIOS } from './genOptions'
 import { MAX_VIDEO_REF_KINDS, VIDEO_AREAS, VIDEO_TARGETS } from './videoGraphs'
 import { type ErrorSink, errorText, fileSrc, GAP, resultsAtom } from './jobs'
@@ -188,7 +188,7 @@ const HANDLERS: Record<string, Handler> = {
   list_models: () => ({
     image: agentModels(false).map((m) => ({ id: m.id, label: m.label, desc: m.desc, accepts_refs: !!m.refs, ratios: RATIOS })),
     video: agentModels(true).map((m) => ({ id: m.id, label: m.label, desc: m.desc, accepts_first_frame: true, max_reference_images: MAX_VIDEO_REF_KINDS.image, max_reference_videos: MAX_VIDEO_REF_KINDS.video, max_reference_audios: MAX_VIDEO_REF_KINDS.audio, motion_control: true, lip_sync: true, ratios: VIDEO_RATIOS, durations: DURATIONS })),
-    music: MUSIC_MODELS,
+    music: musicModels(),
   }),
   generate_image: (editor, args, onError, chat) => startGenerator(editor, false, args, onError, chat),
   generate_video: (editor, args, onError, chat) => startGenerator(editor, true, args, onError, chat),
@@ -225,10 +225,10 @@ const HANDLERS: Record<string, Handler> = {
   },
   remove_video_background: (editor, args, onError) => started(editor, actions.cutoutVideo(editor, videoOf(editor, args.id), onError)),
   generate_music: (editor, args, onError, chat) => {
-    const model = args.model ? MUSIC_MODELS.find((m) => m.id === args.model) : MUSIC_MODELS[0]
+    const model = args.model ? musicModels().find((m) => m.id === args.model) : musicModels()[0]
     if (!model) throw new Error(`unknown music model ${JSON.stringify(args.model)} — see list_models`)
     return toChat(editor, chat, generateAudio(editor, {
-      kind: 'music', model: model.id, prompt: String(args.prompt), lyrics: String(args.lyrics ?? ''), seconds: Math.min(AUDIO_MAX_SECONDS, Math.max(1, Number(args.duration) || 30)),
+      kind: 'music', model: model.id, prompt: String(args.prompt), lyrics: String(args.lyrics ?? ''), seconds: Math.min(model.maxSeconds, Math.max(1, Number(args.duration) || 30)),
       ...(args.bpm ? { bpm: Number(args.bpm) } : {}), ...(args.language ? { language: String(args.language) } : {}), ...(args.key ? { key: String(args.key) } : {}),
     }, onError, true))
   },
@@ -261,7 +261,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   image_to_3d: (editor, args, onError) => started(editor, Array.isArray(args.views) && args.views.length
     ? viewsTo3d(editor, args.views.map((v: unknown) => imageOf(editor, v)), onError)
-    : imageTo3d(editor, imageOf(editor, args.id), onError, args.model === 'pixal3d' ? 'pixal3d' : 'trellis2')),
+    : imageTo3d(editor, imageOf(editor, args.id), onError, args.model === 'pixal3d' ? 'pixal3d' : args.model === 'custom' ? CUSTOM_MODEL3D : 'trellis2')),
   custom_workflow: (_editor, args) => customWorkflowCommand(args),
   wait_generation: (editor, args) => waitResults(editor, (args.ids ?? []).map(String), Number(args.timeout_s) || 60),
 }

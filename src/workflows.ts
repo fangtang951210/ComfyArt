@@ -1,5 +1,5 @@
 import { loadNamed, type PromptGraph } from './comfy'
-import { customGraph, padForOutpaint, pasteBack, resizeTo } from './customWorkflows'
+import { customGraph, moveObject, padForOutpaint, pasteBack, resizeTo } from './customWorkflows'
 
 export const randomSeed = () => Math.floor(Math.random() * 2 ** 31)
 
@@ -34,6 +34,9 @@ const REFINE_LONG = 2048
 const snap16 = (v: number) => Math.max(16, Math.round(v / 16) * 16)
 
 export async function creativeUpscaleGraph(image: string, factor: number, w: number, h: number, style: string, strength: number): Promise<Built> {
+  const detail = `Highly detailed, sharp, clean high resolution image${style ? `, ${style}` : ''}.`
+  const custom = await customGraph('creativeUpscale', { image, prompt: detail, strength }, resizeTo(Math.round(w * factor), Math.round(h * factor)))
+  if (custom) return custom
   const { graph: g, id } = await loadNamed('upscale-ultrasharp-4x.api.json', 'image', 'upscale', 'save')
   g[id.image].inputs.image = image
   const { graph: t2i, id: t } = await loadNamed('qwen-image-2.1-t2i.api.json', 'unet', 'clip', 'vae', 'prompt', 'sampler', 'decode')
@@ -42,7 +45,7 @@ export async function creativeUpscaleGraph(image: string, factor: number, w: num
   Object.assign(g, { r1: t2i[t.unet], r3: t2i[t.clip], r4: t2i[t.vae], r6: t2i[t.prompt], r7: t2i[t.sampler], r8: t2i[t.decode] })
   g.r5 = { class_type: 'ImageScale', inputs: { image: [id.upscale, 0], upscale_method: 'lanczos', width: snap16(w * k), height: snap16(h * k), crop: 'disabled' } }
   g.r9 = { class_type: 'VAEEncode', inputs: { pixels: ['r5', 0], vae: ['r4', 0] } }
-  g.r6.inputs = { ...g.r6.inputs, prompt: `Highly detailed, sharp, clean high resolution image${style ? `, ${style}` : ''}.`, clip: ['r3', 0] }
+  g.r6.inputs = { ...g.r6.inputs, prompt: detail, clip: ['r3', 0] }
   g.r7.inputs = { ...g.r7.inputs, seed: randomSeed(), denoise: strength, model: ['r1', 0], positive: ['r6', 0], negative: ['r6', 1], latent_image: ['r9', 0] }
   g.r8.inputs = { samples: ['r7', 0], vae: ['r4', 0] }
   g[id.save].inputs.images = ['r8', 0]
@@ -93,6 +96,8 @@ export async function editGraph(image: string, prompt: string): Promise<Built> {
 }
 
 export async function moveGraph(image: string, mask: string, from: Crop, to: { x: number; y: number }): Promise<Built> {
+  const custom = await customGraph('erase', { image, mask }, moveObject(from, to))
+  if (custom) return custom
   const { graph: g, id } = await loadNamed('erase-lama.api.json', 'image', 'mask', 'inpaint', 'save')
   g[id.image].inputs.image = image
   g[id.mask].inputs.image = mask

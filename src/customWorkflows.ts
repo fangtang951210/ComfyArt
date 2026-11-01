@@ -1,13 +1,15 @@
 import { atom } from 'tldraw'
 
 import { listUserFiles, readUserJson, writeUserJson, writeUserText, type PromptGraph } from './comfy'
-import { asApiWorkflow, checkWorkflow, CUSTOM_ACTIONS, fillWorkflow, outputOf, parseApiWorkflow, rulesText, type CustomAction, type CustomValues, type Markers } from './customMarkers'
+import { asApiWorkflow, checkWorkflow, CUSTOM_ACTIONS, fillWorkflow, outputOf, parseApiWorkflow, rulesText, specOf, type CustomAction, type CustomValues, type Markers } from './customMarkers'
 import { t } from './i18n'
 
 const DIR = 'comfyart/workflows'
 const CONFIG = 'comfyart/workflow-config.json'
 
 export const CUSTOM_GENERATE = 'custom:generate'
+export const CUSTOM_MUSIC = 'custom:music'
+export const CUSTOM_MODEL3D = 'custom:model3d'
 export const workflowConfigAtom = atom<Partial<Record<CustomAction, string>>>('workflow config', {})
 
 type Link = [string, number]
@@ -46,14 +48,67 @@ export async function customGraph(action: CustomAction, values: CustomValues, ad
   if (!graph) return null
   const { markers, errors } = checkWorkflow(graph, action)
   if (errors.length) throw new Error(`${file}: ${errors.join(' ')}`)
-  for (const [key, marker] of [['image2', 'image2'], ['last', 'last'], ['image', 'image']] as const) {
+  for (const [key, marker] of [['image2', 'image2'], ['last', 'last'], ['image', 'image'], ['base', 'base']] as const) {
     if (values[key] && !markers[marker]) throw new Error(t('customWorkflows.unusedInput', file, `@${marker}`))
   }
   if (markers.image && !values.image) throw new Error(t('customWorkflows.needsImage', file))
+  const { required, optional } = specOf(action)
+  for (const marker of ['video', 'audio', 'front', 'left', 'back', 'right'] as const) {
+    if (values[marker] && !markers[marker]) throw new Error(t('customWorkflows.unusedInput', file, `@${marker}`))
+    if (markers[marker] && !values[marker] && [...required, ...optional].includes(marker)) throw new Error(t('customWorkflows.needsInput', file, `@${marker}`))
+  }
+  if (values.lyrics && !markers.lyrics) throw new Error(t('customWorkflows.unusedLyrics', file))
   fillWorkflow(graph, markers, markers.image2 && !values.image2 ? { ...values, image2: values.image } : values)
   const result = outputOf(graph, markers)!
   adapt?.(graph, markers, result)
   return { graph, result }
+}
+
+export async function customStoryboard(scenes: { prompt: string; duration: number }[], width: number, height: number, firstFrame: string | null) {
+  const file = workflowConfigAtom.get().video
+  if (!file) return null
+  const source = await readCustomWorkflow('video', file)
+  if (!source) return null
+  const { markers, errors } = checkWorkflow(source, 'video')
+  if (errors.length) throw new Error(`${file}: ${errors.join(' ')}`)
+  const result = outputOf(source, markers)!
+  const output = source[result].inputs.video
+  if (!Array.isArray(output)) throw new Error(t('customWorkflows.storyboardNeedsVideo', file))
+  if (firstFrame && !markers.image) throw new Error(t('customWorkflows.unusedInput', file, '@image'))
+  if (markers.image && !firstFrame) throw new Error(t('customWorkflows.needsImage', file))
+  const local = (i: number, id: string) => `s${i}:${id}`
+  const graph: PromptGraph = {}
+  const concat: Record<string, unknown> = { codec: 'auto' }
+  scenes.forEach((scene, i) => {
+    const copy = JSON.parse(JSON.stringify(source)) as PromptGraph
+    fillWorkflow(copy, markers, { prompt: scene.prompt, width, height, seconds: scene.duration, image: i === 0 ? firstFrame ?? undefined : undefined })
+    const clip: Link = [local(i, String(output[0])), Number(output[1])]
+    for (const [id, node] of Object.entries(copy)) {
+      if (id === result || (i > 0 && id === markers.image)) continue
+      const inputs = Object.fromEntries(Object.entries(node.inputs).map(([k, v]) => {
+        if (!Array.isArray(v)) return [k, v]
+        return [k, i > 0 && v[0] === markers.image && v[1] === 0 ? [`last${i}`, 0] : [local(i, String(v[0])), v[1]]]
+      }))
+      graph[local(i, id)] = { ...node, inputs }
+    }
+    graph[`keep${i}`] = { class_type: 'SaveVideo', inputs: { video: clip, filename_prefix: 'comfyart/storyboard/scene', format: 'auto', codec: 'auto' } }
+    if (!markers.image) {
+      concat[`videos.video${i}`] = clip
+      return
+    }
+    graph[`frames${i}`] = { class_type: 'GetVideoComponents', inputs: { video: clip } }
+    if (i === 0) {
+      concat[`videos.video${i}`] = clip
+      return
+    }
+    graph[`last${i}`] = { class_type: 'ImageFromBatch', inputs: { image: [`frames${i - 1}`, 0], batch_index: -1, length: 1 } }
+    graph[`frame${i}`] = { class_type: 'ComfyMathExpression', inputs: { expression: '1 / a', 'values.a': [`frames${i}`, 2] } }
+    graph[`cut${i}`] = { class_type: 'Video Slice', inputs: { video: clip, start_time: [`frame${i}`, 0], duration: 0, strict_duration: false } }
+    concat[`videos.video${i}`] = [`cut${i}`, 0]
+  })
+  graph.concat = { class_type: 'ConcatenateVideo', inputs: concat }
+  graph[result] = { ...source[result], inputs: { ...source[result].inputs, video: ['concat', 0] } }
+  return { graph, result, partial: scenes.map((_, i) => `keep${i}`) }
 }
 
 function rewire(graph: PromptGraph, from: Link, to: Link) {
@@ -87,10 +142,37 @@ export function pasteBack(image: string, mask: string, crop: { x: number; y: num
   }
 }
 
+export function moveObject(from: { x: number; y: number; w: number; h: number }, to: { x: number; y: number }): Adapt {
+  return (graph, markers, result) => {
+    const filled = graph[result].inputs.images
+    if (!Array.isArray(filled)) throw new Error(t('customWorkflows.outputNeedsImages', result))
+    const mask: Link = [markers.mask!, maskSlot(graph, markers.mask!)]
+    graph.cw_grow = { class_type: 'GrowMask', inputs: { mask, expand: 12, tapered_corners: true } }
+    rewire(graph, mask, ['cw_grow', 0])
+    graph.cw_grow.inputs.mask = mask
+    graph.cw_object = { class_type: 'ImageCrop', inputs: { image: [markers.image!, 0], width: from.w, height: from.h, x: from.x, y: from.y } }
+    graph.cw_cut = { class_type: 'CropMask', inputs: { mask, x: from.x, y: from.y, width: from.w, height: from.h } }
+    graph.cw_paste = { class_type: 'ImageCompositeMasked', inputs: { destination: filled, source: ['cw_object', 0], x: Math.max(0, to.x), y: Math.max(0, to.y), resize_source: false, mask: ['cw_cut', 0] } }
+    graph[result].inputs.images = ['cw_paste', 0]
+  }
+}
+
 export function resizeTo(width: number, height: number): Adapt {
   return (graph, _markers, result) => {
     graph.cw_size = { class_type: 'ImageScale', inputs: { image: graph[result].inputs.images, upscale_method: 'lanczos', width, height, crop: 'disabled' } }
     graph[result].inputs.images = ['cw_size', 0]
+  }
+}
+
+export function resizeVideoTo(width: number, height: number): Adapt {
+  return (graph, markers, result) => {
+    if (Array.isArray(graph[result].inputs.images)) return resizeTo(width, height)(graph, markers, result)
+    Object.assign(graph, {
+      cw_v1: { class_type: 'GetVideoComponents', inputs: { video: graph[result].inputs.video } },
+      cw_v2: { class_type: 'ImageScale', inputs: { image: ['cw_v1', 0], upscale_method: 'lanczos', width, height, crop: 'disabled' } },
+      cw_v3: { class_type: 'CreateVideo', inputs: { images: ['cw_v2', 0], audio: ['cw_v1', 1], fps: ['cw_v1', 2] } },
+    })
+    graph[result].inputs.video = ['cw_v3', 0]
   }
 }
 

@@ -1,11 +1,14 @@
 import { loadNamed, type PromptGraph, type RefKind } from './comfy'
-import { customGraph } from './customWorkflows'
+import { customGraph, customStoryboard, resizeVideoTo } from './customWorkflows'
+import { t } from './i18n'
 import { randomSeed, type Built } from './workflows'
 
 export const VIDEO_TARGETS: [string, number][] = [['1080p', 1920], ['2K', 2560], ['4K', 3840]]
 const even = (v: number) => Math.round(v / 2) * 2
 
-export function cutoutVideoGraph(video: string): Built {
+export async function cutoutVideoGraph(video: string): Promise<Built> {
+  const custom = await customGraph('videoCutout', { video })
+  if (custom) return custom
   const graph: PromptGraph = {
     v1: { class_type: 'LoadVideo', inputs: { file: video } },
     v2: { class_type: 'GetVideoComponents', inputs: { video: ['v1', 0] } },
@@ -21,6 +24,8 @@ export function cutoutVideoGraph(video: string): Built {
 
 export async function upscaleVideoGraph(video: string, w: number, h: number, long: number): Promise<Built> {
   const k = long / Math.max(w, h)
+  const custom = await customGraph('videoUpscale', { video }, resizeVideoTo(even(w * k), even(h * k)))
+  if (custom) return custom
   const graph: PromptGraph = {
     v1: { class_type: 'LoadVideo', inputs: { file: video } },
     v2: { class_type: 'GetVideoComponents', inputs: { video: ['v1', 0] } },
@@ -128,6 +133,15 @@ async function r2v(refs: MediaRef[], prompt: string, aspect: number, duration: n
 }
 
 export async function r2vGraph(refs: MediaRef[], prompt: string, aspect: number, duration: number, area: number): Promise<Built> {
+  const files = (kind: RefKind) => refs.filter((r) => r.kind === kind).map((r) => r.file)
+  const [image, image2, ...moreImages] = files('image')
+  const [video, ...moreVideos] = files('video')
+  const [audio, ...moreAudios] = files('audio')
+  const [width, height] = videoSize(aspect, area)
+  const custom = await customGraph('refVideo', { image, image2, video, audio, prompt, width, height, seconds: duration }, () => {
+    if (moreImages.length || moreVideos.length || moreAudios.length) throw new Error(t('customWorkflows.tooManyRefs'))
+  })
+  if (custom) return custom
   const { g, id } = await r2v(refs, prompt, aspect, duration, area)
   return { graph: g, result: id.save }
 }
@@ -137,7 +151,11 @@ export async function motionGraph(_image: string, _video: string, _prompt: strin
 }
 
 export async function lipSyncGraph(image: string, audio: string, prompt: string, aspect: number, seconds: number, area: number): Promise<Built> {
-  const { g, id } = await i2vGraph(`${prompt || 'The person talks naturally to the camera.'} The lips move in sync with the speech.`, aspect, seconds, area)
+  const text = prompt || 'The person talks naturally to the camera.'
+  const [width, height] = videoSize(aspect, area)
+  const custom = await customGraph('lipsync', { image, audio, prompt: text, width, height, seconds })
+  if (custom) return custom
+  const { g, id } = await i2vGraph(`${text} The lips move in sync with the speech.`, aspect, seconds, area)
   g[id.image].inputs.image = image
   g.s1 = { class_type: 'LoadAudio', inputs: { audio } }
   g.s2 = { class_type: 'MiniMaxH3AddGuide', inputs: { positive: [id.prompt, 0], latent: [id.prompt, 1], vae: [id.vae, 0], audio_vae: [id.audioVae, 0], audio: ['s1', 0], frame_idx: 0 } }
@@ -173,7 +191,10 @@ export async function animateGraph(image: string, width: number, height: number,
 }
 
 export async function extendGraph(video: string, width: number, height: number, prompt: string, duration: number): Promise<Built> {
-  const { g, id } = await i2vGraph(prompt || 'Continue the shot naturally.', width / height, duration)
+  const text = prompt || 'Continue the shot naturally.'
+  const custom = await customGraph('extend', { video, prompt: text, seconds: duration })
+  if (custom) return custom
+  const { g, id } = await i2vGraph(text, width / height, duration)
   delete g[id.image]
   Object.assign(g, {
     v1: { class_type: 'LoadVideo', inputs: { file: video } },
@@ -197,8 +218,10 @@ export interface Scene { prompt: string; duration: number }
 const SCENE_NODES = ['prompt', 'frames', 'seconds', 'seed', 'guider', 'sampler', 'decode', 'audioDecode'] as const
 
 export async function storyboardGraph(scenes: Scene[], aspect: number, firstFrame: string | null, area: number): Promise<Built> {
-  const { graph: t, id } = await loadNamed('i2v-minimax-h3.api.json', ...SCENE_NODES, 'image', 'video', 'save')
   const [w, h] = videoSize(aspect, area)
+  const custom = await customStoryboard(scenes, w, h, firstFrame)
+  if (custom) return custom
+  const { graph: t, id } = await loadNamed('i2v-minimax-h3.api.json', ...SCENE_NODES, 'image', 'video', 'save')
   const nodes = SCENE_NODES.map((name) => id[name])
   const g: PromptGraph = {}
   for (const [n, node] of Object.entries(t)) if (!nodes.includes(n) && n !== id.image) g[n] = node

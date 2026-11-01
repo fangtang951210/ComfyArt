@@ -90,6 +90,7 @@ Claude Code、Codex、Gemini CLI、Qwen Code、Cursor、VS Code、Claude Desktop
 | 样机 | `mockup-surface` | [comfyui_controlnet_aux](https://github.com/Fannovel16/comfyui_controlnet_aux) 的 Depth Anything V2（`depth_anything_v2_vitl.pth`，首次使用时下载）、`birefnet.safetensors` |
 | 配乐（MiniMax Music 3） | `music-minimax3` | `minimax_music3_dit_fp16.safetensors`（diffusion_models）、`minimax_music3_text_encoder_pruned_int8_convrot.safetensors`（text_encoders）、`minimax_music3_dav.safetensors`（vae） |
 | 配乐（ACE-Step 1.5） | `music-ace-step15` | `acestep_v1.5_xl_turbo_bf16.safetensors`（diffusion_models）、`qwen_0.6b_ace15.safetensors` 和 `qwen_4b_ace15.safetensors`（text_encoders）、`ace_1.5_vae.safetensors`（vae） |
+| 配乐（YuE2） | `music-yue2` | `yue2_3b_int8_convrot.safetensors`（checkpoints） |
 | 音效 | `sfx-stable-audio` | `stable-audio-open-1.0.safetensors`（checkpoints）、`t5-base.safetensors`（text_encoders） |
 | 配音 | `speech-kokoro` | [comfyui-kokoro](https://github.com/stavsap/comfyui-kokoro) |
 | 声音克隆 | `voice-clone-indextts` | [ComfyUI-Easy-IndexTTS2](https://github.com/yolain/ComfyUI-Easy-IndexTTS2) |

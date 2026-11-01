@@ -82,7 +82,7 @@ export const upscaleVideo = (e: Editor, s: TLVideoShape, long: number, err: Erro
   run(e, s, t('actions.upscaleVideo'), err, (src) => upscaleVideoGraph(src.image, src.w, src.h, long), { kind: 'video' })
 
 export const cutoutVideo = (e: Editor, s: TLVideoShape, err: ErrorSink) =>
-  run(e, s, t('common.removeBackground'), err, async (src) => cutoutVideoGraph(src.image), { kind: 'video' })
+  run(e, s, t('common.removeBackground'), err, (src) => cutoutVideoGraph(src.image), { kind: 'video' })
 
 export const extendVideo =(e: Editor, s: TLVideoShape, prompt: string, duration: number, err: ErrorSink) =>
   run(e, s, t('common.extendVideo'), err, (src) => extendGraph(src.image, src.w, src.h, prompt, duration), { kind: 'video' })

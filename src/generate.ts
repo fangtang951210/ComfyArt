@@ -121,7 +121,7 @@ async function generateGraph(shape: GeneratorShape): Promise<Built> {
   const model = isVideo(workflow) ? null : modelOf(workflow) ?? agentModels(false)[0]
   const colors = isVideo(workflow) ? [] : colorsOf(shape)
   const picked = model ? usableRefs(model, refs, refModesOf(shape)).slice(0, refLimit(model)) : []
-  const palette = colors.length && model?.refs && picked.length < refLimit(model)
+  const palette = colors.length && model?.refs && model.id !== CUSTOM_GENERATE && picked.length < refLimit(model)
     ? viewUrl(await uploadImage(await paletteImage(colors), `palette-mosaic-${colors.join('').replace(/#/g, '')}.png`))
     : null
   const used = palette ? [...picked, { src: palette, mode: PALETTE_MODE }] : picked
@@ -154,7 +154,9 @@ async function generateGraph(shape: GeneratorShape): Promise<Built> {
   const [width, height] = targetSize(shape.props)
   if (model?.id === CUSTOM_GENERATE) {
     const loras = lorasOf(shape)
-    const custom = await customGraph('generate', { prompt, width, height, count }, (graph, markers, result) => {
+    const start = baseOf(shape)
+    const [image, image2] = picked.map((r) => annotated(r.src))
+    const custom = await customGraph('generate', { prompt, width, height, count, image, image2, base: start ? annotated(start.src) : undefined, strength: start ? start.strength / 100 : undefined }, (graph, markers, result) => {
       if (loras.length) {
         if (!markers.unet) throw new Error(t('customWorkflows.needsUnet', model.label))
         applyLoras(graph, markers.unet, loras)

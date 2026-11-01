@@ -172,8 +172,8 @@ SPECS: dict[str, dict] = {
         "Generate a piece of music as an audio element on the canvas. model: a music model id from list_models "
         "(default the first). prompt: English description of genre, mood, instruments, tempo and vocal type. "
         "lyrics optional (use [intro]/[verse]/[chorus]/[outro] lines; omit for an instrumental). duration in "
-        "seconds (default 30). bpm, language (e.g. en, ko, zh, ja) and key (e.g. F minor) are used by ACE-Step; "
-        "MiniMax Music 3 reads them from the prompt. Returns ids for wait_generation.",
+        "seconds (default 30, up to the model's maxSeconds in list_models). bpm, language (e.g. en, ko, zh, ja) and key (e.g. F minor) are used by ACE-Step; "
+        "MiniMax Music 3 and YuE2 read them from the prompt. Returns ids for wait_generation.",
         {"prompt": {"type": "string"}, "lyrics": {"type": "string"}, "duration": {"type": "integer"}, "model": {"type": "string"},
          "bpm": {"type": "integer"}, "language": {"type": "string"}, "key": {"type": "string"}},
         ["prompt"], approval="生成配乐"),
@@ -185,7 +185,8 @@ SPECS: dict[str, dict] = {
         "Read text aloud as an audio element. voice is a built-in voice id (zf_/zm_ Chinese female/male, "
         "af_/am_ American, bf_/bm_ British, jf_/jm_ Japanese; default zf_xiaoxiao; on Comfy Cloud the Qwen3-TTS speakers "
         "Serena, Vivian, Uncle_fu, Dylan, Eric, Ryan, Aiden, Ono_anna, Sohee; default Serena), or pass reference "
-        "(an audio shape id) to clone that recording's voice. Returns ids for wait_generation.",
+        "(an audio shape id) to clone that recording's voice. A custom speech workflow picks its own voice. "
+        "Returns ids for wait_generation.",
         {"text": {"type": "string"}, "voice": {"type": "string"}, "reference": _ID}, ["text"], approval="生成配音"),
     "edit_elements": _tool(
         "Turn the text inside an image shape into editable text: OCR finds each line, the text is erased "
@@ -209,10 +210,11 @@ SPECS: dict[str, dict] = {
     "image_to_3d": _tool(
         "Turn an image shape (best: one object on a plain background) into a textured 3D model placed next "
         "to it. Takes a few minutes. Returns ids for wait_generation. model: trellis2 (default) or pixal3d, "
-        "which also conditions on the photo's camera field of view (estimated with MoGe). views: 1-4 image "
+        "which also conditions on the photo's camera field of view (estimated with MoGe), or custom, the "
+        "user's own workflow when one is assigned to model3d. views: 1-4 image "
         "shape ids of the same object as front, left, back and right, in that order; when given, Pixal3D "
         "multi-view builds one model from all of them and id and model are ignored.",
-        {"id": _ID, "model": {"type": "string", "enum": ["trellis2", "pixal3d"]}, "views": _IDS}, approval="转 3D"),
+        {"id": _ID, "model": {"type": "string", "enum": ["trellis2", "pixal3d", "custom"]}, "views": _IDS}, approval="转 3D"),
     "place_html": _tool(
         "Place a web page on the canvas: html is one complete self-contained HTML document you wrote "
         "(inline CSS/JS, images by absolute URL). width/height in canvas units.",
@@ -276,7 +278,7 @@ SPECS: dict[str, dict] = {
         ["action"]),
     "custom_workflow": _tool(
         "Connect the user's own ComfyUI workflow to a ComfyArt feature (image generation, edit, inpaint, "
-        "upscale, video...). action rules: how to mark the nodes, read it first. list: each feature's "
+        "upscale, video, music, speech, sfx...). action rules: how to mark the nodes, read it first. list: each feature's "
         "markers, its uploaded files and the one in use. check: validate workflow (API-format JSON "
         "object) or file for a feature and report what to fix. install: save workflow as name for "
         "feature and use it (refused while check has errors). assign: give feature one of its files, or "
