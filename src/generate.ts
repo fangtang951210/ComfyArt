@@ -31,7 +31,7 @@ export const videoModeOf = (shape: GeneratorShape): VideoMode => (VIDEO_MODES.in
 export const motionOf = (shape: GeneratorShape) => (shape.meta.motion as string | undefined) ?? null
 export const speechOf = (shape: GeneratorShape) => (shape.meta.speech as string | undefined) ?? null
 
-const SHORT_SIDE: Record<string, number> = { '1K': 1024, '2K': 2048 }
+export const SHORT_SIDE: Record<string, number> = { '1K': 1024, '2K': 2048 }
 
 function ratioOf(ratio: string): number {
   const [a, b] = ratio.split(':').map(Number)

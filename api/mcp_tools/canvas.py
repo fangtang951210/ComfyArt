@@ -67,10 +67,11 @@ SPECS: dict[str, dict] = {
         "product, style). ref_modes: one mode per ref, same order, saying how to use it: content, style, "
         "composition, or a structure guide canny, lineart, depth, normal, pose, mlsd, scribble, softedge, seg, "
         "tile (structure guides also work on models with control instead of refs, e.g. Qwen Image 2512). "
-        "base: an image shape id to transform (image-to-image) with base_strength 0-100 (higher changes more).",
+        "base: an image shape id to transform (image-to-image) with base_strength 0-100 (higher changes more). "
+        "resolution: 1K (short side 1024, default) or 2K (2048).",
         {"prompt": {"type": "string"}, "model": {"type": "string"}, "ratio": {"type": "string"},
          "count": {"type": "integer"}, "refs": _IDS, "ref_modes": {"type": "array", "items": {"type": "string"}}, "base": {"type": "string"},
-         "base_strength": {"type": "integer"}, **_PLACE},
+         "base_strength": {"type": "integer"}, "resolution": {"type": "string", "enum": ["1K", "2K"]}, **_PLACE},
         ["prompt"], approval="生成图像"),
     "generate_video": _tool(
         "Start generating a video. Returns ids at once; call wait_generation with them. first_frame / "
@@ -82,9 +83,10 @@ SPECS: dict[str, dict] = {
         "describe the shot; a tag only mentioned in passing is ignored. motion_video (a video shape id) "
         "makes the person in first_frame copy that video's body motion. speech_audio (an audio shape id) "
         "makes the person in first_frame say that audio with matching lip movement; the video lasts as long "
-        "as the audio. duration in seconds (5, 10 or 15).",
+        "as the audio. duration in seconds (5, 10 or 15). resolution: 768p (default) or 1080p "
+        "(1920x1088, more diffusion steps via the reactive tier).",
         {"prompt": {"type": "string"}, "model": {"type": "string"}, "ratio": {"type": "string"},
-         "duration": {"type": "integer"}, "first_frame": {"type": "string"}, "last_frame": {"type": "string"},
+         "duration": {"type": "integer"}, "resolution": {"type": "string", "enum": ["768p", "1080p"]}, "first_frame": {"type": "string"}, "last_frame": {"type": "string"},
          "reference_images": _IDS, "reference_videos": _IDS, "reference_audios": _IDS,
          "motion_video": {"type": "string"}, "speech_audio": {"type": "string"}, **_PLACE},
         ["prompt"], approval="生成视频"),

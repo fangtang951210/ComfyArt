@@ -4,11 +4,11 @@
     "inputs": {
       "filename_prefix": "comfyart/video",
       "format": "auto",
+      "format.codec": "auto",
       "video": [
         "130",
         0
-      ],
-      "format.codec": "auto"
+      ]
     },
     "_meta": {
       "title": "@save"
@@ -33,32 +33,38 @@
     "class_type": "VAEDecodeAudio",
     "inputs": {
       "samples": [
-        "125",
+        "140",
         0
       ],
       "vae": [
         "120",
         0
       ]
+    },
+    "_meta": {
+      "title": "@audioDecode"
     }
   },
   "122": {
     "class_type": "VAEDecode",
     "inputs": {
       "samples": [
-        "125",
+        "140",
         0
       ],
       "vae": [
         "119",
         0
       ]
+    },
+    "_meta": {
+      "title": "@decode"
     }
   },
   "123": {
     "class_type": "KSamplerSelect",
     "inputs": {
-      "sampler_name": "res_multistep"
+      "sampler_name": "euler"
     }
   },
   "124": {
@@ -67,70 +73,19 @@
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "127",
+        "134",
         0
       ],
-      "steps": 20
-    },
-    "_meta": {
-      "title": "@scheduler"
-    }
-  },
-  "125": {
-    "class_type": "SamplerCustomAdvanced",
-    "inputs": {
-      "noise": [
-        "129",
-        0
-      ],
-      "guider": [
-        "126",
-        0
-      ],
-      "sampler": [
-        "123",
-        0
-      ],
-      "sigmas": [
-        "124",
-        0
-      ],
-      "latent_image": [
-        "136",
+      "steps": [
+        "150",
         1
       ]
-    }
-  },
-  "126": {
-    "class_type": "BasicGuider",
-    "inputs": {
-      "model": [
-        "127",
-        0
-      ],
-      "conditioning": [
-        "136",
-        0
-      ]
-    },
-    "_meta": {
-      "title": "@guider"
-    }
-  },
-  "127": {
-    "class_type": "UNETLoader",
-    "inputs": {
-      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
-      "weight_dtype": "default"
-    },
-    "_meta": {
-      "title": "@unet"
     }
   },
   "128": {
     "class_type": "CLIPLoader",
     "inputs": {
-      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "clip_name": "qwen3vl_32b_minimax_h3_bf16.safetensors",
       "type": "minimax",
       "device": "default"
     }
@@ -138,7 +93,7 @@
   "129": {
     "class_type": "RandomNoise",
     "inputs": {
-      "noise_seed": 157368968253448
+      "noise_seed": 1
     },
     "_meta": {
       "title": "@seed"
@@ -159,63 +114,198 @@
         "121",
         0
       ]
+    },
+    "_meta": {
+      "title": "@video"
     }
   },
   "131": {
-    "class_type": "ComfyMathExpression",
-    "inputs": {
-      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
-      "values.a": [
-        "132",
-        0
-      ]
-    }
-  },
-  "132": {
-    "class_type": "PrimitiveFloat",
-    "inputs": {
-      "value": 5
-    },
-    "_meta": {
-      "title": "@seconds"
-    }
-  },
-  "136": {
     "class_type": "MiniMaxH3ReferenceToVideo",
     "inputs": {
-      "ref_image_size": "match",
+      "prompt": "",
       "clip": [
         "128",
         0
-      ],
-      "prompt": "",
-      "width": 1344,
-      "height": 768,
-      "length": [
-        "131",
-        1
       ],
       "vae": [
         "119",
         0
       ],
+      "width": 1344,
+      "height": 768,
+      "length": [
+        "132",
+        1
+      ],
       "audio_vae": [
         "120",
         0
       ],
-      "ref_images.ref_image_0": [
-        "137",
-        0
-      ]
+      "ref_image_size": "max"
     },
     "_meta": {
       "title": "@prompt @size"
     }
   },
-  "137": {
+  "132": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "133",
+        0
+      ]
+    }
+  },
+  "133": {
+    "class_type": "PrimitiveFloat",
+    "inputs": {
+      "value": 2
+    },
+    "_meta": {
+      "title": "@seconds"
+    }
+  },
+  "134": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "lora_name": "minimax_h3_DMAD_4step_full_lora_avg_rank_39_bf16.safetensors",
+      "model": [
+        "233",
+        0
+      ],
+      "strength_model": 1.0
+    }
+  },
+  "140": {
+    "class_type": "SelfLiftAvatarH3Sampler",
+    "inputs": {
+      "low_res_model": [
+        "134",
+        0
+      ],
+      "positive": [
+        "131",
+        0
+      ],
+      "negative": [
+        "131",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "latent_image": [
+        "131",
+        1
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "147",
+        0
+      ],
+      "seed": 42,
+      "cfg": 1.0,
+      "transition_step": 6,
+      "lowres_scale": [
+        "152",
+        0
+      ],
+      "rho": 0.0,
+      "w_min": 0.5,
+      "w_max": 1.0,
+      "upscaler_model": "minimax_h3_latent_upscaler_3d_conv_v1_bf16.safetensors",
+      "highres_tiling": true,
+      "tiling_mode": "auto",
+      "tiling_tiles": 2,
+      "tiling_axis": "auto",
+      "highres_tiling_mode": "global_stream",
+      "highres_token_chunk": 4096,
+      "highres_weight_cache_gb": 4.0
+    }
+  },
+  "147": {
+    "class_type": "H3SigmaRefiner",
+    "inputs": {
+      "sigmas": [
+        "124",
+        0
+      ],
+      "extra_steps": 1,
+      "start_at_sigma": 0.7,
+      "end_at_sigma": 0.0,
+      "spacing": "cosine"
+    }
+  },
+  "149": {
+    "class_type": "GetLatentSize",
+    "inputs": {
+      "latent": [
+        "131",
+        1
+      ]
+    }
+  },
+  "150": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "expression": "8 if a <= 1500 else 8",
+      "values.a": [
+        "149",
+        0
+      ]
+    }
+  },
+  "152": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "expression": "0.65 if a <= 1500 else 0.5",
+      "values.a": [
+        "149",
+        0
+      ]
+    }
+  },
+  "233": {
+    "class_type": "BlockSparseAttention",
+    "inputs": {
+      "model": [
+        "244",
+        0
+      ],
+      "selection": "sol-attn",
+      "selection.tau": 1,
+      "start_percent": 0.2,
+      "end_percent": 1.0,
+      "dense_blocks": "",
+      "min_tokens": 12288,
+      "extra_tokens": 256,
+      "sink_conditioning": "exact_kv_and_rows",
+      "verbose": false
+    }
+  },
+  "244": {
+    "class_type": "JR_H3_HybridLoader",
+    "inputs": {
+      "fl_model_name": "minimax_h3_fl2va_bf16.safetensors",
+      "ref_model_name": "minimax_h3_ref2va_bf16.safetensors",
+      "profile": "Recommended",
+      "weight_dtype": "default",
+      "block_range_start": 25,
+      "block_range_end": 49,
+      "final_adaln_from_ref": false,
+      "custom_ref": "",
+      "custom_fl": ""
+    }
+  },
+  "cw_first": {
     "class_type": "LoadImage",
     "inputs": {
-      "image": "example.png"
+      "image": "便利店.png"
     },
     "_meta": {
       "title": "@image"

@@ -48,7 +48,8 @@ export async function t2vGraph(prompt: string, aspect: number, duration: number,
   const [w, h] = videoSize(aspect, area)
   const custom = await customGraph('video', { prompt, width: w, height: h, seconds: duration })
   if (custom) return custom
-  const { graph: g, id } = await loadNamed('t2v-minimax-h3.api.json', 'prompt', 'seconds', 'seed', 'save')
+  const { graph: g, id } = await loadNamed('t2v-minimax-h3.api.json', 'image', 'prompt', 'seconds', 'seed', 'save')
+  delete g[id.image]
   Object.assign(g[id.prompt].inputs, { prompt, width: w, height: h })
   g[id.seconds].inputs.value = duration
   g[id.seed].inputs.noise_seed = randomSeed()
@@ -68,15 +69,19 @@ export async function imageToVideoGraph(image: string | null, prompt: string, as
   const [w, h] = videoSize(aspect, area)
   const custom = await customGraph('video', { image: image ?? undefined, last: last ?? undefined, prompt: prompt || MOTION, width: w, height: h, seconds: duration })
   if (custom) return custom
-  const { g, id } = await i2vGraph(prompt || MOTION, aspect, duration, area)
-  if (image) g[id.image].inputs.image = image
-  else {
+  const { graph: g, id } = await loadNamed('i2v-minimax-h3.api.json', 'image', 'prompt', 'seconds', 'seed', 'save')
+  Object.assign(g[id.prompt].inputs, { prompt: prompt || MOTION, width: w, height: h })
+  g[id.seconds].inputs.value = duration
+  g[id.seed].inputs.noise_seed = randomSeed()
+  if (image) {
+    g[id.image].inputs.image = image
+    g[id.prompt].inputs['ref_images.ref_image_0'] = [id.image, 0]
+  } else {
     delete g[id.image]
-    delete g[id.prompt].inputs.first_frame
   }
   if (last) {
     g.last = { class_type: 'LoadImage', inputs: { image: last } }
-    g[id.prompt].inputs.last_frame = ['last', 0]
+    g[id.prompt].inputs['ref_images.ref_image_1'] = ['last', 0]
   }
   return { graph: g, result: id.save }
 }
@@ -97,7 +102,7 @@ function refLead(refs: MediaRef[]): string {
 }
 
 async function r2v(refs: MediaRef[], prompt: string, aspect: number, duration: number, area: number) {
-  const { graph: g, id } = await loadNamed('r2v-minimax-h3.api.json', 'prompt', 'image', 'seconds', 'seed', 'unet', 'vae', 'scheduler', 'guider', 'save')
+  const { graph: g, id } = await loadNamed('r2v-minimax-h3.api.json', 'prompt', 'image', 'seconds', 'seed', 'save')
   const [w, h] = videoSize(aspect, area)
   Object.assign(g[id.prompt].inputs, { prompt: [refLead(refs), prompt].filter(Boolean).join('\n'), width: w, height: h })
   delete g[id.image]
@@ -127,24 +132,8 @@ export async function r2vGraph(refs: MediaRef[], prompt: string, aspect: number,
   return { graph: g, result: id.save }
 }
 
-export async function motionGraph(image: string, video: string, prompt: string, aspect: number, duration: number, area: number): Promise<Built> {
-  const { g, id } = await r2v([{ file: image, kind: 'image' }], `${prompt ? `${prompt}\n` : ''}The character from <Picture 1> performs exactly the body motion of the control pose video.`, aspect, duration, area)
-  Object.assign(g, {
-    m1: { class_type: 'LoadVideo', inputs: { file: video } },
-    m2: { class_type: 'Video Slice', inputs: { video: ['m1', 0], start_time: 0, duration, strict_duration: false } },
-    m3: { class_type: 'GetVideoComponents', inputs: { video: ['m2', 0] } },
-    m4: { class_type: 'ResizeImageMaskNode', inputs: { input: ['m3', 0], resize_type: 'scale longer dimension', 'resize_type.longer_size': 1024, scale_method: 'lanczos' } },
-    m5: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'sdpose_wholebody_fp16.safetensors' } },
-    m6: { class_type: 'UNETLoader', inputs: { unet_name: 'rt_detr_v4-x-hgnet_fp16.safetensors', weight_dtype: 'default' } },
-    m7: { class_type: 'RTDETR_detect', inputs: { model: ['m6', 0], image: ['m4', 0], threshold: 0.5, class_name: 'person', max_detections: 2 } },
-    m8: { class_type: 'SDPoseKeypointExtractor', inputs: { model: ['m5', 0], vae: ['m5', 2], image: ['m4', 0], batch_size: 16, bboxes: ['m7', 0] } },
-    m9: { class_type: 'SDPoseDrawKeypoints', inputs: { keypoints: ['m8', 0], draw_body: true, draw_hands: true, draw_face: true, draw_feet: true, stick_width: 4, face_point_size: 2, score_threshold: 0.5, draw_head: true } },
-    m10: { class_type: 'ModelPatchLoader', inputs: { name: 'minimax_h3_fun_controlnet_union_pruned_int8_convrot.safetensors' } },
-    m11: { class_type: 'MiniMaxH3FunControlNetApply', inputs: { model: [id.unet, 0], model_patch: ['m10', 0], vae: [id.vae, 0], strength: 1, start_percent: 0, end_percent: 1, control_video: ['m9', 0] } },
-  })
-  g[id.scheduler].inputs.model = ['m11', 0]
-  g[id.guider].inputs.model = ['m11', 0]
-  return { graph: g, result: id.save }
+export async function motionGraph(_image: string, _video: string, _prompt: string, _aspect: number, _duration: number, _area: number): Promise<Built> {
+  throw new Error('motion mode is disabled in this fork: built-in video workflows were replaced by the unified SelfLift chain')
 }
 
 export async function lipSyncGraph(image: string, audio: string, prompt: string, aspect: number, seconds: number, area: number): Promise<Built> {
@@ -165,9 +154,16 @@ export async function animateGraph(image: string, width: number, height: number,
     if (loop && markers.last) g[markers.last].inputs.image = image
   })
   if (custom) return custom
-  const { g, id } = await i2vGraph(prompt || MOTION, width / height, MOTION_SECONDS)
+  const { graph: g, id } = await loadNamed('i2v-minimax-h3.api.json', 'image', 'prompt', 'seconds', 'seed', 'decode', 'video', 'save')
+  Object.assign(g[id.prompt].inputs, { prompt: prompt || MOTION, width: Math.round(width * scale), height: Math.round(height * scale) })
+  g[id.seconds].inputs.value = MOTION_SECONDS
+  g[id.seed].inputs.noise_seed = randomSeed()
   g[id.image].inputs.image = image
-  if (loop) g[id.prompt].inputs.last_frame = [id.image, 0]
+  g[id.prompt].inputs['ref_images.ref_image_0'] = [id.image, 0]
+  if (loop) {
+    g.last = { class_type: 'LoadImage', inputs: { image } }
+    g[id.prompt].inputs['ref_images.ref_image_1'] = ['last', 0]
+  }
   delete g[id.save]
   delete g[id.video]
   const k = Math.min(1, MOTION_LONG / Math.max(width, height))

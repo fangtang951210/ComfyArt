@@ -1,6 +1,11 @@
 {
   "1": { "class_type": "LoadAudio", "inputs": { "audio": "" }, "_meta": { "title": "@voice" } },
-  "2": { "class_type": "easy downloadIndexTTSAndLoadModel", "inputs": { "model": "IndexTTS-2", "download_from": "huggingface" } },
-  "3": { "class_type": "easy indexTTSGenerateSimple", "inputs": { "indextts_model": ["2", 0], "text": "", "unload_model": false, "seed": 0, "reference_audio": ["1", 0] }, "_meta": { "title": "@prompt" } },
-  "4": { "class_type": "SaveAudio", "inputs": { "audio": ["3", 0], "filename_prefix": "comfyart/audio" }, "_meta": { "title": "@save" } }
+  "2": { "class_type": "Qwen3ASRLoader", "inputs": { "model_name": "qwen3_asr_1.7b_bf16.safetensors" } },
+  "3": { "class_type": "Qwen3ASRTranscribe", "inputs": { "model": ["2", 0], "audio": ["1", 0], "language": "auto", "context": "", "max_new_tokens": 4096 } },
+  "4": { "class_type": "Drama3CodecLoader", "inputs": { "codec_name": "drama3_codec.safetensors" } },
+  "5": { "class_type": "Drama3EncodeVoice", "inputs": { "codec": ["4", 0], "audio": ["1", 0], "transcript": ["3", 0] } },
+  "6": { "class_type": "Drama3Loader", "inputs": { "model_name": "drama3_fp8experts_bf16.safetensors", "experts": "in RAM", "expert_cache_gb": 0.0, "second_gpu": "none", "split_layer": 0 } },
+  "7": { "class_type": "Drama3Generate", "inputs": { "model": ["6", 0], "text": "", "voices.voice0": ["5", 0], "seed": 0, "temperature": 1.0, "top_p": 0.9, "top_k": 0, "max_frames": 600, "split_long_text": true, "speakers": "one take per line" }, "_meta": { "title": "@prompt" } },
+  "8": { "class_type": "Drama3Decode", "inputs": { "codec": ["4", 0], "codes": ["7", 0], "shorten_long_pauses": true } },
+  "9": { "class_type": "SaveAudio", "inputs": { "audio": ["8", 0], "filename_prefix": "drama3mcp" }, "_meta": { "title": "@save" } }
 }

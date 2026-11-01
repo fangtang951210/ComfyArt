@@ -1,5 +1,7 @@
 {
-  "1": { "class_type": "KokoroSpeaker", "inputs": { "speaker_name": "zf_xiaoxiao" }, "_meta": { "title": "@voice" } },
-  "2": { "class_type": "KokoroGenerator", "inputs": { "text": "", "speaker": ["1", 0], "speed": 1, "lang": "Mandarin Chinese" }, "_meta": { "title": "@prompt" } },
-  "3": { "class_type": "SaveAudio", "inputs": { "audio": ["2", 0], "filename_prefix": "comfyart/audio" }, "_meta": { "title": "@save" } }
+  "1": { "class_type": "Drama3Loader", "inputs": { "model_name": "drama3_fp8experts_bf16.safetensors", "experts": "in RAM", "expert_cache_gb": 0.0, "second_gpu": "none", "split_layer": 0 } },
+  "2": { "class_type": "Drama3CodecLoader", "inputs": { "codec_name": "drama3_codec.safetensors" } },
+  "3": { "class_type": "Drama3Generate", "inputs": { "model": ["1", 0], "text": "", "seed": 0, "temperature": 1.0, "top_p": 0.9, "top_k": 0, "max_frames": 600, "split_long_text": true, "speakers": "one take per line" }, "_meta": { "title": "@prompt @voice" } },
+  "4": { "class_type": "Drama3Decode", "inputs": { "codec": ["2", 0], "codes": ["3", 0], "shorten_long_pauses": true } },
+  "5": { "class_type": "SaveAudio", "inputs": { "audio": ["4", 0], "filename_prefix": "drama3mcp" }, "_meta": { "title": "@save" } }
 }

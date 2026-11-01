@@ -7,10 +7,10 @@ import { bakeToImage, createMockup } from './mockup'
 import { api } from './comfy'
 import { LAYOUT_HANDLERS, shapeOf, type Args, type Handler } from './botLayout'
 import { placeInChatFrame } from './chatFrame'
-import { capRefs, createGenerator, generate } from './generate'
+import { capRefs, createGenerator, generate, SHORT_SIDE } from './generate'
 import { customWorkflowCommand } from './customWorkflows'
 import { DURATIONS, RATIOS, VIDEO_RATIOS } from './genOptions'
-import { MAX_VIDEO_REF_KINDS, VIDEO_TARGETS } from './videoGraphs'
+import { MAX_VIDEO_REF_KINDS, VIDEO_AREAS, VIDEO_TARGETS } from './videoGraphs'
 import { type ErrorSink, errorText, fileSrc, GAP, resultsAtom } from './jobs'
 import { agentModels } from './models'
 import { modesFor } from './refModes'
@@ -114,9 +114,12 @@ function startGenerator(editor: Editor, video: boolean, args: Args, onError: Err
   if (wantsRefs && !model.refs && !(model.control && args.refs.every((_: unknown, i: number) => modes[i]))) throw new Error(`${model.label} does not accept refs; use a model with accepts_refs from list_models, give every ref a structure ref_mode, or drop refs`)
   const ratios = video ? VIDEO_RATIOS : RATIOS
   if (args.ratio && !ratios.includes(args.ratio)) throw new Error(`ratio must be one of ${ratios.join(', ')}`)
+  const resolution = args.resolution ? String(args.resolution) : video ? '768p' : '1K'
+  const areaKeys = video ? VIDEO_AREAS : SHORT_SIDE
+  if (!(resolution in areaKeys)) throw new Error(`resolution must be one of ${Object.keys(areaKeys).join(', ')} for ${video ? 'video' : 'image'}`)
   const props = video
-    ? { prompt: String(args.prompt), workflow: model.id, ratio: args.ratio ?? ratios[0], duration: DURATIONS.includes(args.duration) ? args.duration : DURATIONS[0] }
-    : { prompt: String(args.prompt), workflow: model.id, ratio: args.ratio ?? '1:1', count: Math.min(4, Math.max(1, Number(args.count) || 1)) }
+    ? { prompt: String(args.prompt), workflow: model.id, ratio: args.ratio ?? ratios[0], duration: DURATIONS.includes(args.duration) ? args.duration : DURATIONS[0], resolution }
+    : { prompt: String(args.prompt), workflow: model.id, ratio: args.ratio ?? '1:1', count: Math.min(4, Math.max(1, Number(args.count) || 1)), resolution }
   const media = video ? [...refUrls(editor, args.reference_images), ...refUrls(editor, args.reference_videos), ...refUrls(editor, args.reference_audios)] : []
   const motion = video && args.motion_video ? refUrls(editor, [args.motion_video])[0] : null
   const speech = video && args.speech_audio ? refUrls(editor, [args.speech_audio])[0] : null

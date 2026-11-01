@@ -2,7 +2,7 @@
   "1": {
     "class_type": "UNETLoader",
     "inputs": {
-      "unet_name": "moss_image_sft_int8_convrot.safetensors",
+      "unet_name": "moss_image_sft_bf16.safetensors",
       "weight_dtype": "default"
     },
     "_meta": {
@@ -12,7 +12,7 @@
   "2": {
     "class_type": "CLIPLoader",
     "inputs": {
-      "clip_name": "qwen3.5_9b_w4a8_gptq.safetensors",
+      "clip_name": "qwen3.5_9b_bf16.safetensors",
       "type": "moss_image",
       "device": "default"
     }
